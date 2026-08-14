@@ -1,0 +1,165 @@
+[project]
+name = "influenceros-api"
+version = "0.1.0"
+description = "InfluencerOS — internal control center for AI influencer production"
+requires-python = ">=3.12"
+readme = "README.md"
+
+dependencies = [
+    "fastapi>=0.141,<0.142",
+    "uvicorn[standard]>=0.40,<0.41",
+    "pydantic>=2.13,<3",
+    # EmailStr validation in auth/user schemas.
+    "email-validator>=2.2,<3",
+    "pydantic-settings>=2.13,<3",
+    "sqlalchemy[asyncio]>=2.0.52,<2.1",
+    "asyncpg>=0.31,<0.32",
+    "alembic>=1.19,<2",
+    "arq>=0.28,<0.29",
+    # arq 0.28 pins redis<=5.3.1; do not bump past that without bumping arq.
+    "redis>=5.0,<5.4",
+    "boto3>=1.43,<2",
+    "httpx>=0.28,<0.29",
+    "structlog>=26.1,<27",
+    "argon2-cffi>=25.1,<26",
+    "pyjwt>=2.13,<3",
+    "python-slugify>=8.0,<9",
+    "typer>=0.20,<0.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1,<10",
+    "pytest-asyncio>=1.4,<2",
+    "pytest-cov>=7.0,<8",
+    "ruff>=0.16,<0.17",
+    "mypy>=2.3,<3",
+    "boto3-stubs[s3]>=1.43,<2",
+    "types-python-slugify>=8.0,<9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+# ---------------------------------------------------------------------------
+# Ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "F",     # pyflakes
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "I",     # isort
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "A",     # flake8-builtins
+    "C4",    # flake8-comprehensions
+    "DTZ",   # flake8-datetimez — no naive datetimes
+    "T20",   # flake8-print — no stray prints
+    "PT",    # flake8-pytest-style
+    "RET",   # flake8-return
+    "SIM",   # flake8-simplify
+    "BLE",   # flake8-blind-except
+    "ARG",   # unused arguments
+    "PTH",   # prefer pathlib
+    "ERA",   # commented-out code
+    "PL",    # pylint subset
+    "RUF",   # ruff-specific
+    "ASYNC", # flake8-async
+    "S",     # bandit
+]
+ignore = [
+    "B008",    # function call in default argument — required by FastAPI Depends()
+    # Route handlers and domain services are invoked by name (FastAPI resolves
+    # dependencies by keyword), so an argument count limit measures nothing here.
+    "PLR0913", # too many arguments
+    "PLR0917", # too many positional arguments
+]
+
+# flake8-type-checking (TC/TCH) is deliberately NOT enabled. FastAPI and Pydantic
+# resolve annotations at runtime via `get_type_hints`, so moving a name such as
+# `Settings` into a TYPE_CHECKING block breaks dependency injection and response
+# model generation. TYPE_CHECKING blocks are still used by hand where the import
+# is genuinely typing-only.
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",    # assert is the point of a test
+    "PLR2004", # magic values are fine in assertions
+    "ARG001",  # pytest fixtures are injected but sometimes unused by name
+    "S105",    # literal "bearer"/"access" token *type* names
+    "S106",    # deliberately fixed signing keys, so tests are deterministic
+]
+# Migrations are generated then auto-formatted by the alembic post-write hook.
+# They keep Alembic's own marker comments and can exceed the line limit.
+"alembic/versions/**" = ["ERA001", "E501", "D"]
+# Local-development defaults, guarded at runtime by
+# `Settings.validate_production_safety`, which refuses to boot a real
+# environment that still carries them.
+"app/core/config.py" = ["S105"]
+# Enum *values* and literal type tags that merely contain the word
+# "token"/"password" — not credentials.
+"app/shared/events/actions.py" = ["S105"]
+"app/modules/auth/schemas.py" = ["S105"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# ---------------------------------------------------------------------------
+# MyPy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+disallow_any_generics = true
+plugins = ["pydantic.mypy"]
+exclude = ['^alembic/versions/', '^\.venv/']
+
+[[tool.mypy.overrides]]
+module = ["arq.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Fixtures and tests must share one event loop: the session-scoped engine holds
+# asyncpg connections, and a connection cannot be awaited from a different loop.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+]
+markers = [
+    "integration: exercises a real database or external service",
+]
+filterwarnings = [
+    "error",
+    # SQLAlchemy emits this while tearing down asyncpg connections in tests.
+    "ignore::ResourceWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/cli.py", "alembic/*"]
