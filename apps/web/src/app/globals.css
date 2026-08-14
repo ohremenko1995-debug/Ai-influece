@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/*
+ * Dark by default — this is an internal production tool used for hours at a time.
+ *
+ * Every status colour was checked against its own background for WCAG AA contrast
+ * (4.5:1 for text). Status is additionally always spelled out in words, so hue is
+ * reinforcement rather than the only channel carrying meaning.
+ */
+@theme {
+  /* Surfaces, from page background upward */
+  --color-bg: oklch(0.17 0.012 265);
+  --color-surface-1: oklch(0.21 0.013 265);
+  --color-surface-2: oklch(0.25 0.014 265);
+  --color-surface-3: oklch(0.3 0.015 265);
+  --color-border: oklch(0.33 0.015 265);
+
+  /* Text */
+  --color-fg: oklch(0.96 0.005 265);
+  --color-fg-muted: oklch(0.82 0.01 265);
+  --color-fg-subtle: oklch(0.66 0.012 265);
+
+  /* Accent — used for primary actions and the active nav item */
+  --color-accent: oklch(0.62 0.17 265);
+  --color-accent-hover: oklch(0.67 0.17 265);
+  --color-accent-fg: oklch(0.99 0 0);
+  --color-ring: oklch(0.7 0.15 265);
+
+  /* Status: info (draft, queued) */
+  --color-info-bg: oklch(0.28 0.05 250);
+  --color-info-border: oklch(0.45 0.09 250);
+  --color-info-fg: oklch(0.85 0.09 250);
+
+  /* Status: success (active, approved, ready) */
+  --color-success-bg: oklch(0.28 0.06 155);
+  --color-success-border: oklch(0.45 0.11 155);
+  --color-success-fg: oklch(0.86 0.13 155);
+
+  /* Status: warning (paused, awaiting review) */
+  --color-warning-bg: oklch(0.3 0.07 75);
+  --color-warning-border: oklch(0.5 0.11 75);
+  --color-warning-fg: oklch(0.88 0.13 85);
+
+  /* Status: danger (failed, rejected, archived, destructive actions) */
+  --color-danger: oklch(0.55 0.19 20);
+  --color-danger-hover: oklch(0.6 0.19 20);
+  --color-danger-bg: oklch(0.29 0.07 20);
+  --color-danger-border: oklch(0.47 0.13 20);
+  --color-danger-fg: oklch(0.85 0.12 20);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Never remove the focus ring — keyboard navigation is the primary mode for a
+     dense internal tool. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-accent-fg);
+  }
+}
+
+@layer utilities {
+  /* Visually hidden but announced by screen readers. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
