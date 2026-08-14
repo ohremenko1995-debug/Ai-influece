@@ -49,7 +49,7 @@ await audit.record_entity_change(actor=..., action=..., entity=entity, before=be
 The serialiser converts UUIDs, datetimes, enums and Decimals to JSON-safe values, skips
 relationships (an audit row records the entity that changed, not its neighbours), reads
 only loaded attributes so it never triggers lazy IO while a transaction is being
-finalised, and replaces `password_hash` with `[redacted]` — visible as *changed*, never
+finalised, and replaces `password_hash` with `[redacted]` — visible as _changed_, never
 as a value.
 
 ### A closed action vocabulary
@@ -88,7 +88,7 @@ fail, and the surrounding unit of work rolls back on exception, which would disc
 evidence of the attempt. Committing there is safe because the transaction contains
 nothing else, and it is commented at the call site.
 
-Attempts against *unknown* addresses are logged but not audited: `organization_id` is
+Attempts against _unknown_ addresses are logged but not audited: `organization_id` is
 non-null and there is no tenant to file them under. A separate security-events stream
 is the right home for those, and the gap is recorded in
 [security.md](../security.md).
@@ -118,10 +118,10 @@ is the right home for those, and the gap is recorded in
 
 ## Alternatives considered
 
-| Alternative | Why not |
-|---|---|
-| Log to stdout and ship to a log store | Not transactional. A rolled-back change would still be "audited", and a shipping failure loses the trail. Also unqueryable by entity from the product UI. |
+| Alternative                                           | Why not                                                                                                                                                                                                                                                               |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Log to stdout and ship to a log store                 | Not transactional. A rolled-back change would still be "audited", and a shipping failure loses the trail. Also unqueryable by entity from the product UI.                                                                                                             |
 | SQLAlchemy `after_flush` event to audit automatically | Cannot know the actor (it is not in the session), cannot express business meaning (`influencer.archived` vs a generic update), and would audit internal bookkeeping writes. Automatic coverage of the wrong data is worse than deliberate coverage of the right data. |
-| Database triggers writing audit rows | Same actor problem — the database does not know who is acting — and it moves auditing away from the code that must explain it. Triggers also fire for migrations and manual fixes. |
-| A separate audit database | Loses transactional atomicity, which is the entire point, and would need an outbox to approach the same guarantee. |
-| Ordering by `created_at` with `clock_timestamp()` | Would fix intra-transaction ordering, but `clock_timestamp()` is non-deterministic within a transaction and makes "these happened atomically" unrepresentable. A sequence separates *when* from *in what order*. |
+| Database triggers writing audit rows                  | Same actor problem — the database does not know who is acting — and it moves auditing away from the code that must explain it. Triggers also fire for migrations and manual fixes.                                                                                    |
+| A separate audit database                             | Loses transactional atomicity, which is the entire point, and would need an outbox to approach the same guarantee.                                                                                                                                                    |
+| Ordering by `created_at` with `clock_timestamp()`     | Would fix intra-transaction ordering, but `clock_timestamp()` is non-deterministic within a transaction and makes "these happened atomically" unrepresentable. A sequence separates _when_ from _in what order_.                                                      |

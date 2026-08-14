@@ -17,7 +17,7 @@ Automated QA catches the technical class of these (sharpness, duration, sync off
 identity embedding distance). It cannot judge "is this appropriate for this brand, in
 this market, right now".
 
-The platform must also be able to *prove*, after the fact, that a specific person
+The platform must also be able to _prove_, after the fact, that a specific person
 approved specific text — not merely that an approval step existed.
 
 ## Decision
@@ -54,7 +54,7 @@ a disclosure policy and an existing Character Bible.
 
 ### 3. Permission separation
 
-`calendar:schedule` is held by `owner` and `creative_lead`. Neither can *decide* an
+`calendar:schedule` is held by `owner` and `creative_lead`. Neither can _decide_ an
 approval: `approval:decide` belongs to `owner`, `reviewer` and `compliance`, and
 `approval:decide_high_risk` narrows to `owner` and `compliance`.
 
@@ -69,7 +69,7 @@ taken at approval time, not references to the current script or policy.
 
 Without this, editing a script or a disclosure policy after approval would silently
 change what goes out while the approval record still pointed at it. Copying is what
-makes the record mean "this person approved *this text*".
+makes the record mean "this person approved _this text_".
 
 It is also why `DisclosurePolicy` can safely remain mutable-with-audit rather than
 versioned: an edit cannot rewrite history, because approved content no longer depends
@@ -107,9 +107,9 @@ explicit non-goal, and the `agent` role cannot reach a publication surface at al
 
 ## Alternatives considered
 
-| Alternative | Why not |
-|---|---|
-| Auto-approve `low` risk content | The risk level is set by the same person who wrote the brief. Self-assessed risk is not a control. |
-| Approval as a boolean on `ContentBrief` | Loses who decided, when, with what notes, and cannot express `revision_requested` or `escalated`. A boolean cannot be audited meaningfully. |
-| Frontend-only gating (hide the button) | Any HTTP client bypasses it. The requirement is explicit that button visibility is not the enforcement point. |
+| Alternative                                      | Why not                                                                                                                                                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auto-approve `low` risk content                  | The risk level is set by the same person who wrote the brief. Self-assessed risk is not a control.                                                                            |
+| Approval as a boolean on `ContentBrief`          | Loses who decided, when, with what notes, and cannot express `revision_requested` or `escalated`. A boolean cannot be audited meaningfully.                                   |
+| Frontend-only gating (hide the button)           | Any HTTP client bypasses it. The requirement is explicit that button visibility is not the enforcement point.                                                                 |
 | Approve at publish time instead of schedule time | Scheduling is the last human touchpoint before content is queued to go out; a gate after that leaves a window where unapproved content sits in the calendar looking approved. |

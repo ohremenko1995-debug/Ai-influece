@@ -5,13 +5,13 @@ iterating on the quality gates.
 
 ## Prerequisites
 
-| Tool | Version | Needed for |
-|---|---|---|
-| Docker + Compose v2 | any current | container path |
-| Python | 3.12+ | native path |
-| Node | 22+ | frontend |
-| pnpm | 10+ | frontend workspace |
-| `uv` | 0.8+ | fast Python installs (`pip` also works) |
+| Tool                | Version     | Needed for                              |
+| ------------------- | ----------- | --------------------------------------- |
+| Docker + Compose v2 | any current | container path                          |
+| Python              | 3.12+       | native path                             |
+| Node                | 22+         | frontend                                |
+| pnpm                | 10+         | frontend workspace                      |
+| `uv`                | 0.8+        | fast Python installs (`pip` also works) |
 
 ---
 
@@ -24,11 +24,11 @@ make migrate-docker
 make seed
 ```
 
-| Service | URL |
-|---|---|
-| Web | http://localhost:3000 |
-| API docs | http://localhost:8000/docs |
-| Readiness | http://localhost:8000/health/ready |
+| Service       | URL                                                     |
+| ------------- | ------------------------------------------------------- |
+| Web           | http://localhost:3000                                   |
+| API docs      | http://localhost:8000/docs                              |
+| Readiness     | http://localhost:8000/health/ready                      |
 | MinIO console | http://localhost:9001 (`influenceros` / `influenceros`) |
 
 Useful targets:
@@ -113,7 +113,7 @@ make test-api
   unique indexes, `IDENTITY` and `CHECK` constraints; a different engine would
   validate a different system.
 - Builds the schema by running **`alembic downgrade base` then `upgrade head`**, so
-  every run proves the migrations apply *and* reverse.
+  every run proves the migrations apply _and_ reverse.
 - Isolates each test with a connection-level transaction plus a savepoint-joined
   session (`join_transaction_mode="create_savepoint"`). Application code commits
   normally; the outer transaction is rolled back afterwards.
@@ -129,8 +129,8 @@ asyncio_default_test_loop_scope    = "session"
 
 Fixtures and tests must share one event loop, because the session-scoped engine
 holds asyncpg connections and a connection cannot be awaited from a different loop.
-Without the second line every database test fails with *"got Future attached to a
-different loop"*.
+Without the second line every database test fails with _"got Future attached to a
+different loop"_.
 
 ---
 
@@ -183,15 +183,15 @@ run unless `ENVIRONMENT=development`.
 It creates the organization `influenceros-studio`, one user per role, and a default
 disclosure policy. Password for every seeded user: `influenceros`.
 
-| Role | Email |
-|---|---|
-| owner | owner@influenceros.example.com |
-| creative_lead | creative@influenceros.example.com |
-| operator | operator@influenceros.example.com |
-| reviewer | reviewer@influenceros.example.com |
-| compliance | compliance@influenceros.example.com |
-| analyst | analyst@influenceros.example.com |
-| agent | agent@influenceros.example.com |
+| Role          | Email                               |
+| ------------- | ----------------------------------- |
+| owner         | owner@influenceros.example.com      |
+| creative_lead | creative@influenceros.example.com   |
+| operator      | operator@influenceros.example.com   |
+| reviewer      | reviewer@influenceros.example.com   |
+| compliance    | compliance@influenceros.example.com |
+| analyst       | analyst@influenceros.example.com    |
+| agent         | agent@influenceros.example.com      |
 
 Emails use `example.com` on purpose. `.test`, `.local` and `.invalid` are
 special-use TLDs that `email-validator` rejects, so a seeded `@company.local`
@@ -214,29 +214,29 @@ passwordless login.
 
 ## Troubleshooting
 
-| Symptom | Cause and fix |
-|---|---|
-| `ConnectionRefusedError ... 5432` in tests | Postgres is not running, or `POSTGRES_HOST` still says `postgres` on the native path. |
-| `Can't locate revision identified by '0001'` | The migration file was deleted while `alembic_version` still records it. `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` on the dev *and* test databases, then regenerate. |
-| `got Future attached to a different loop` | `asyncio_default_test_loop_scope` is missing from `[tool.pytest.ini_options]`. |
-| `MissingGreenlet: greenlet_spawn has not been called` | A response model touched an unloaded relationship or an expired column. Load the relationship explicitly (assign the object, not just the FK) or ensure the column comes back via RETURNING (`eager_defaults=True`). |
-| `FOR UPDATE cannot be applied to the nullable side of an outer join` | A row-lock query inherited an eager `joinedload`. Add `noload(...)` for that relationship. |
-| `readiness: object_storage=false` | MinIO is not running or the bucket is missing. `docker compose up minio minio-init`. |
-| `InsecureKeyLengthWarning` from PyJWT | `SECRET_KEY` is shorter than 32 bytes (HMAC-SHA256's digest size, RFC 7518 §3.2). |
-| Refusing to boot in staging/production | `Settings.validate_production_safety` found a dev placeholder `SECRET_KEY`, a short key, or `DEV_AUTH_ENABLED=true`. |
-| A single request logs for minutes | A module-level logger was created with `.bind()` before `configure_logging` ran, freezing structlog's rich exception formatter. Use `get_logger(__name__)` from `app.shared.observability`. |
+| Symptom                                                              | Cause and fix                                                                                                                                                                                                        |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ConnectionRefusedError ... 5432` in tests                           | Postgres is not running, or `POSTGRES_HOST` still says `postgres` on the native path.                                                                                                                                |
+| `Can't locate revision identified by '0001'`                         | The migration file was deleted while `alembic_version` still records it. `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` on the dev _and_ test databases, then regenerate.                                       |
+| `got Future attached to a different loop`                            | `asyncio_default_test_loop_scope` is missing from `[tool.pytest.ini_options]`.                                                                                                                                       |
+| `MissingGreenlet: greenlet_spawn has not been called`                | A response model touched an unloaded relationship or an expired column. Load the relationship explicitly (assign the object, not just the FK) or ensure the column comes back via RETURNING (`eager_defaults=True`). |
+| `FOR UPDATE cannot be applied to the nullable side of an outer join` | A row-lock query inherited an eager `joinedload`. Add `noload(...)` for that relationship.                                                                                                                           |
+| `readiness: object_storage=false`                                    | MinIO is not running or the bucket is missing. `docker compose up minio minio-init`.                                                                                                                                 |
+| `InsecureKeyLengthWarning` from PyJWT                                | `SECRET_KEY` is shorter than 32 bytes (HMAC-SHA256's digest size, RFC 7518 §3.2).                                                                                                                                    |
+| Refusing to boot in staging/production                               | `Settings.validate_production_safety` found a dev placeholder `SECRET_KEY`, a short key, or `DEV_AUTH_ENABLED=true`.                                                                                                 |
+| A single request logs for minutes                                    | A module-level logger was created with `.bind()` before `configure_logging` ran, freezing structlog's rich exception formatter. Use `get_logger(__name__)` from `app.shared.observability`.                          |
 
 ## Configuration reference
 
 All settings come from the environment; `.env.example` is the annotated list and
 contains no real secrets. Notable ones:
 
-| Variable | Effect |
-|---|---|
-| `ENVIRONMENT` | `development` unlocks the auth stub and relaxes secret checks |
-| `SECRET_KEY` | JWT signing key; ≥32 bytes, from the secret manager outside development |
-| `DEV_AUTH_ENABLED` | must be false outside development, or the app refuses to boot |
-| `API_CORS_ORIGINS` | comma-separated explicit origins; `*` is rejected |
-| `LOG_FORMAT` | `console` locally, `json` elsewhere |
-| `GENERATION_PROVIDER` | `fake` or `comfyui` (step 6) |
-| `POSTGRES_TEST_DB` | the database the test suite rebuilds; never the dev one |
+| Variable              | Effect                                                                  |
+| --------------------- | ----------------------------------------------------------------------- |
+| `ENVIRONMENT`         | `development` unlocks the auth stub and relaxes secret checks           |
+| `SECRET_KEY`          | JWT signing key; ≥32 bytes, from the secret manager outside development |
+| `DEV_AUTH_ENABLED`    | must be false outside development, or the app refuses to boot           |
+| `API_CORS_ORIGINS`    | comma-separated explicit origins; `*` is rejected                       |
+| `LOG_FORMAT`          | `console` locally, `json` elsewhere                                     |
+| `GENERATION_PROVIDER` | `fake` or `comfyui` (step 6)                                            |
+| `POSTGRES_TEST_DB`    | the database the test suite rebuilds; never the dev one                 |

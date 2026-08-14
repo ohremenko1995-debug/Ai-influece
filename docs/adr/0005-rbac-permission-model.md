@@ -39,14 +39,14 @@ Writes are what differ.
 
 The role that produces content does not approve it:
 
-| Capability | Roles |
-|---|---|
-| request approval | owner, creative_lead, operator, reviewer, compliance |
-| decide approval | owner, reviewer, compliance |
-| decide **high-risk** approval | owner, compliance |
-| author/modify disclosure policy | owner, compliance |
-| schedule content | owner, creative_lead |
-| connect a social account | owner |
+| Capability                      | Roles                                                |
+| ------------------------------- | ---------------------------------------------------- |
+| request approval                | owner, creative_lead, operator, reviewer, compliance |
+| decide approval                 | owner, reviewer, compliance                          |
+| decide **high-risk** approval   | owner, compliance                                    |
+| author/modify disclosure policy | owner, compliance                                    |
+| schedule content                | owner, creative_lead                                 |
+| connect a social account        | owner                                                |
 
 `creative_lead` may schedule but not decide. That is safe because scheduling
 independently requires an approved `ApprovalTask`
@@ -57,9 +57,9 @@ to change anything.
 
 ### Checked twice, on purpose
 
-| Layer | Purpose |
-|---|---|
-| `RequirePermission(...)` as a route dependency | fails before the handler body runs; appears in the generated OpenAPI document |
+| Layer                                              | Purpose                                                                                               |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `RequirePermission(...)` as a route dependency     | fails before the handler body runs; appears in the generated OpenAPI document                         |
 | `actor.require_permission(...)` inside the service | protects every caller, including the worker, the seed CLI and tests, which never pass through a route |
 
 Duplication is deliberate. The route check is a fast guard and documentation; the
@@ -132,10 +132,10 @@ seeding). No authentication path constructs one, and its actions are audited as
 
 ## Alternatives considered
 
-| Alternative | Why not |
-|---|---|
-| Role checks at endpoints | Adding a role means editing every route. Silent holes when one is missed. |
-| A single `is_admin` flag | Cannot express separation of duties, which is the point of having reviewer and compliance as distinct roles. |
-| Policy engine (OPA, Casbin) | External dependency and a second language for rules, to express a matrix that fits on one screen. Revisit if per-resource rules ever appear. |
-| Row-level security in PostgreSQL | Good defence in depth for tenancy, but it cannot express `approval:decide_high_risk`, and it moves authorization away from the code that must explain refusals to users. Repository-level scoping plus 404-on-cross-tenant covers the same ground legibly. |
-| Trusting the matrix alone for `agent` | One careless `|` in a set literal would hand an automated actor the ability to approve high-risk content. The fence is cheap; the failure is not. |
+| Alternative                           | Why not                                                                                                                                                                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Role checks at endpoints              | Adding a role means editing every route. Silent holes when one is missed.                                                                                                                                                                                  |
+| A single `is_admin` flag              | Cannot express separation of duties, which is the point of having reviewer and compliance as distinct roles.                                                                                                                                               |
+| Policy engine (OPA, Casbin)           | External dependency and a second language for rules, to express a matrix that fits on one screen. Revisit if per-resource rules ever appear.                                                                                                               |
+| Row-level security in PostgreSQL      | Good defence in depth for tenancy, but it cannot express `approval:decide_high_risk`, and it moves authorization away from the code that must explain refusals to users. Repository-level scoping plus 404-on-cross-tenant covers the same ground legibly. |
+| Trusting the matrix alone for `agent` | One careless set-union typo would hand an automated actor the ability to approve high-risk content. The fence is cheap; the failure is not.                                                                                                                |

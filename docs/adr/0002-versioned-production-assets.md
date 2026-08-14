@@ -42,7 +42,7 @@ CREATE UNIQUE INDEX uq_influencer_versions_influencer_id_current
     ON influencer_versions (influencer_id) WHERE is_current;
 ```
 
-The application must therefore demote the previous current row *before* inserting the
+The application must therefore demote the previous current row _before_ inserting the
 new one. That ordering is a constraint the database imposes, not a convention the code
 hopes to follow.
 
@@ -122,9 +122,9 @@ $$ LANGUAGE plpgsql;
 
 ## Alternatives considered
 
-| Alternative | Why not |
-|---|---|
-| Mutable rows + audit diffs | An audit diff records *that* a prompt changed, not the template as it stood. Reconstructing a historical prompt from a diff chain is error-prone, and one missing entry breaks it permanently. |
-| Event sourcing | Full replay for every read is disproportionate. Versioned snapshots give the same auditability for the entities that need it, at a fraction of the complexity. |
-| Temporal tables / `SYSTEM VERSIONING` | Not native to PostgreSQL; extensions or triggers would be needed, and the version number would stop being a first-class domain concept the UI can show. |
-| `current_version_id` on the parent | Circular FK, and two rows to keep consistent instead of one partial index. |
+| Alternative                           | Why not                                                                                                                                                                                        |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mutable rows + audit diffs            | An audit diff records _that_ a prompt changed, not the template as it stood. Reconstructing a historical prompt from a diff chain is error-prone, and one missing entry breaks it permanently. |
+| Event sourcing                        | Full replay for every read is disproportionate. Versioned snapshots give the same auditability for the entities that need it, at a fraction of the complexity.                                 |
+| Temporal tables / `SYSTEM VERSIONING` | Not native to PostgreSQL; extensions or triggers would be needed, and the version number would stop being a first-class domain concept the UI can show.                                        |
+| `current_version_id` on the parent    | Circular FK, and two rows to keep consistent instead of one partial index.                                                                                                                     |

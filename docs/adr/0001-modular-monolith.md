@@ -89,8 +89,8 @@ in the current design blocks that, and nothing anticipates it either.
 
 ## Alternatives considered
 
-| Alternative | Why not |
-|---|---|
-| Microservices per context | Eleven services for one engineer. Cross-context reads become network calls, and the audit atomicity guarantee needs a distributed transaction pattern before any feature ships. |
-| Single-file "just get it working" app | The audit and versioning rules must be enforced in one place per entity. Without module boundaries those rules end up duplicated in route handlers, which is exactly how they drift. |
-| Modular monolith with separate schemas per module | Adds migration and permission complexity now to buy an extraction that may never happen. Cross-schema foreign keys work but complicate Alembic autogenerate. |
+| Alternative                                       | Why not                                                                                                                                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Microservices per context                         | Eleven services for one engineer. Cross-context reads become network calls, and the audit atomicity guarantee needs a distributed transaction pattern before any feature ships.      |
+| Single-file "just get it working" app             | The audit and versioning rules must be enforced in one place per entity. Without module boundaries those rules end up duplicated in route handlers, which is exactly how they drift. |
+| Modular monolith with separate schemas per module | Adds migration and permission complexity now to buy an extraction that may never happen. Cross-schema foreign keys work but complicate Alembic autogenerate.                         |

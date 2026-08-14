@@ -42,12 +42,12 @@ detail, not a domain attribute. It is nullable — an invited user has no creden
 yet, an SSO-backed account never will — and it is never serialised into a response
 or an audit row (the audit snapshot replaces it with `[redacted]`).
 
-| `status` | Meaning |
-|---|---|
-| `invited` | created, cannot authenticate |
-| `active` | the only status that can authenticate |
-| `suspended` | temporarily blocked |
-| `disabled` | permanently blocked |
+| `status`    | Meaning                               |
+| ----------- | ------------------------------------- |
+| `invited`   | created, cannot authenticate          |
+| `active`    | the only status that can authenticate |
+| `suspended` | temporarily blocked                   |
+| `disabled`  | permanently blocked                   |
 
 ### Membership **[built]**
 
@@ -62,15 +62,15 @@ explains who had access when a historical action was taken, so it is never remov
 
 ### Roles
 
-| Role | Purpose |
-|---|---|
-| `owner` | full authority, including membership and social connections |
+| Role            | Purpose                                                                         |
+| --------------- | ------------------------------------------------------------------------------- |
+| `owner`         | full authority, including membership and social connections                     |
 | `creative_lead` | identity, recipes, assets, content, scheduling — but **not** approval decisions |
-| `operator` | produces content and runs jobs; no identity, no policy, no scheduling |
-| `reviewer` | QA and approval decisions up to medium risk |
-| `compliance` | policy authorship and high-risk approval decisions |
-| `analyst` | read-only plus the audit trail |
-| `agent` | automation identity: reads context, drafts content, queues jobs — nothing else |
+| `operator`      | produces content and runs jobs; no identity, no policy, no scheduling           |
+| `reviewer`      | QA and approval decisions up to medium risk                                     |
+| `compliance`    | policy authorship and high-risk approval decisions                              |
+| `analyst`       | read-only plus the audit trail                                                  |
+| `agent`         | automation identity: reads context, drafts content, queues jobs — nothing else  |
 
 The permission matrix, the separation-of-duties reasoning and the agent fence are in
 [ADR-0005](adr/0005-rbac-permission-model.md) and [security.md](security.md).
@@ -92,7 +92,7 @@ requires it, so the entity is defined here.
 It encodes the two disclosures the platform must be able to prove it required: that
 the character is AI-generated, and that a given piece of content is advertising.
 
-**Mutable, not versioned** — the platform rule allows "an immutable version *or* an
+**Mutable, not versioned** — the platform rule allows "an immutable version _or_ an
 audit-log entry", and every field change emits `disclosure_policy.updated` with
 before/after data. Content that has been approved snapshots the disclosure text it
 was approved with, so editing a policy cannot retroactively change what a reviewer
@@ -123,12 +123,12 @@ draft ──► active ◄──► paused
   └─────────┴───────────┴──► archived   (terminal)
 ```
 
-| From | To |
-|---|---|
-| `draft` | `active`, `archived` |
-| `active` | `paused`, `archived` |
-| `paused` | `active`, `archived` |
-| `archived` | — |
+| From       | To                   |
+| ---------- | -------------------- |
+| `draft`    | `active`, `archived` |
+| `active`   | `paused`, `archived` |
+| `paused`   | `active`, `archived` |
+| `archived` | —                    |
 
 `archived` is terminal on purpose. Reviving a retired character would silently reuse
 an identity whose audit history says it was retired; a new character gets a new code.
@@ -170,12 +170,12 @@ replay a chain of diffs to know what the constraints were when a generation ran.
 
 Guarantees, enforced by the database and not only by the service:
 
-| Guarantee | Mechanism |
-|---|---|
-| gapless numbering from 1 | row lock on the influencer + `unique (influencer_id, version_number)` |
-| `version_number >= 1` | `CHECK` constraint |
-| at most one current version | partial unique index `WHERE is_current` |
-| authored by a real person | `created_by` is a non-null FK to `users`; a system actor is refused with `user_actor_required` |
+| Guarantee                   | Mechanism                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| gapless numbering from 1    | row lock on the influencer + `unique (influencer_id, version_number)`                          |
+| `version_number >= 1`       | `CHECK` constraint                                                                             |
+| at most one current version | partial unique index `WHERE is_current`                                                        |
+| authored by a real person   | `created_by` is a non-null FK to `users`; a system actor is refused with `user_actor_required` |
 
 Creating a version writes **two** audit entries: one against the version, and one
 against the influencer, so the character's own history tab shows that its identity
@@ -265,18 +265,18 @@ draft ──► brief_ready ──► script_ready ──► generating ──�
               └──► qa_failed
 ```
 
-| From | Allowed to |
-|---|---|
-| `draft` | `brief_ready` |
-| `brief_ready` | `script_ready` |
-| `script_ready` | `generating` |
-| `generating` | `qa_failed`, `awaiting_review` |
-| `qa_failed` | `script_ready`, `generating` |
-| `awaiting_review` | `approved`, `rejected`, `qa_failed` |
-| `approved` | `scheduled` |
-| `scheduled` | `published` |
-| `published` | `analyzed` |
-| `analyzed`, `rejected` | — |
+| From                   | Allowed to                          |
+| ---------------------- | ----------------------------------- |
+| `draft`                | `brief_ready`                       |
+| `brief_ready`          | `script_ready`                      |
+| `script_ready`         | `generating`                        |
+| `generating`           | `qa_failed`, `awaiting_review`      |
+| `qa_failed`            | `script_ready`, `generating`        |
+| `awaiting_review`      | `approved`, `rejected`, `qa_failed` |
+| `approved`             | `scheduled`                         |
+| `scheduled`            | `published`                         |
+| `published`            | `analyzed`                          |
+| `analyzed`, `rejected` | —                                   |
 
 Forbidden, and asserted by tests when built:
 
@@ -333,7 +333,7 @@ routes to a person.
 
 `status` ∈ `pending | approved | rejected | revision_requested | escalated`.
 
-The gate in front of scheduling. `requested_role` records who was *asked*;
+The gate in front of scheduling. `requested_role` records who was _asked_;
 `decided_by` records who actually decided. High-risk briefs require
 `approval:decide_high_risk`, held only by `compliance` and `owner`.
 See [ADR-0003](adr/0003-human-approval-gate.md).
@@ -353,7 +353,7 @@ failed`.
 
 `caption_snapshot` and `disclosure_snapshot` are copies taken at approval time, not
 references. That is what makes an approval meaningful: the reviewer approved
-*specific text*, and later edits to the script or the policy cannot rewrite it.
+_specific text_, and later edits to the script or the policy cannot rewrite it.
 
 On the MVP there is no automatic publishing. The terminal automated state is
 `ready_for_manual_publish`; a human publishes and marks the result.
@@ -385,7 +385,7 @@ Append-only: no `updated_at`, no update path, no delete endpoint, and the reposi
 exposes only `list_entries` and `count_entries` (asserted by a test).
 
 `sequence_number` is a `BIGINT IDENTITY` and is the ordering column.
-`created_at` cannot order the log: PostgreSQL's `now()` is the *transaction*
+`created_at` cannot order the log: PostgreSQL's `now()` is the _transaction_
 timestamp, so every row written by one request shares it.
 
 Written by `AuditService` inside the caller's transaction — see

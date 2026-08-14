@@ -40,13 +40,13 @@ That is a hard rule, not a convention: providers are resolved inside the worker.
 
 Every bounded context is a package under `app/modules/` with the same five files:
 
-| File | Responsibility |
-|---|---|
-| `models.py` | SQLAlchemy tables. No business logic. |
-| `schemas.py` | Pydantic request/response models. Validation of *shape*. |
+| File            | Responsibility                                                   |
+| --------------- | ---------------------------------------------------------------- |
+| `models.py`     | SQLAlchemy tables. No business logic.                            |
+| `schemas.py`    | Pydantic request/response models. Validation of _shape_.         |
 | `repository.py` | Queries. Always filtered by `organization_id`. No authorization. |
-| `service.py` | Domain rules, authorization, audit emission. Never commits. |
-| `router.py` | HTTP mapping only. No rules. |
+| `service.py`    | Domain rules, authorization, audit emission. Never commits.      |
+| `router.py`     | HTTP mapping only. No rules.                                     |
 
 Additional files appear where a context needs them — `state_machine.py` for a
 status table, `serialization.py` for the audit snapshot logic.
@@ -60,7 +60,7 @@ router  →  service  →  repository  →  models
 ```
 
 `shared/*` never imports from `modules/*`. A module may call another module's
-*service or repository*, never reach into its tables. Cross-module reads currently
+_service or repository_, never reach into its tables. Cross-module reads currently
 in use: `character_versions` reads through `InfluencerRepository` to check tenancy
 before touching a version row, and `influencers` reads
 `InfluencerVersionRepository` to compute activation blockers.
@@ -69,7 +69,7 @@ before touching a version row, and `influencers` reads
 
 `app/shared/db/registry.py` imports every model module. SQLAlchemy resolves
 `relationship("InfluencerVersion")` by name at first use, so a process that
-imported only *some* model modules fails at runtime rather than at import.
+imported only _some_ model modules fails at runtime rather than at import.
 `build_database()` imports the registry itself, which means no entrypoint — API,
 worker, CLI, tests — can forget. This was a real bug before it was structural: the
 seed CLI crashed with `NameError: name 'InfluencerVersion' is not defined`.
@@ -99,7 +99,7 @@ check is what protects a non-HTTP caller such as the worker or the seed CLI.
 
 `X-Organization-Id` chooses which of the caller's memberships to act under. An
 active `Membership` must exist regardless, so sending another tenant's id yields
-`403 not_a_member`. Reading another tenant's *entity* yields `404`, not `403`, so
+`403 not_a_member`. Reading another tenant's _entity_ yields `404`, not `403`, so
 the API never confirms that a row exists in someone else's organization.
 
 ## Transactions
@@ -146,29 +146,29 @@ with `noload()` there.
 
 ## Schema conventions
 
-| Decision | Reason |
-|---|---|
-| UUIDv4 primary keys | no cross-tenant id guessing; ordering always via `created_at`/sequence, never the key |
-| `TIMESTAMPTZ`, server defaults | one clock authority (the database), never the app server's |
-| Enums as `VARCHAR` + `CHECK` | adding a value is a plain `ALTER TABLE`; native `ALTER TYPE ... ADD VALUE` is irreversible |
-| `JSONB`, not `JSON` | contents stay queryable and indexable (`findings`, `visual_constraints`) |
-| Explicit constraint naming convention | without it Alembic cannot drop unnamed constraints, and every later change becomes hand-written SQL |
+| Decision                                    | Reason                                                                                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UUIDv4 primary keys                         | no cross-tenant id guessing; ordering always via `created_at`/sequence, never the key                                                                         |
+| `TIMESTAMPTZ`, server defaults              | one clock authority (the database), never the app server's                                                                                                    |
+| Enums as `VARCHAR` + `CHECK`                | adding a value is a plain `ALTER TABLE`; native `ALTER TYPE ... ADD VALUE` is irreversible                                                                    |
+| `JSONB`, not `JSON`                         | contents stay queryable and indexable (`findings`, `visual_constraints`)                                                                                      |
+| Explicit constraint naming convention       | without it Alembic cannot drop unnamed constraints, and every later change becomes hand-written SQL                                                           |
 | `eager_defaults=True` on timestamped tables | `onupdate=func.now()` is a SQL expression; without RETURNING, `updated_at` expires and a response model triggers a synchronous reload inside an async request |
-| No hard deletes | `archived_at` + terminal `archived` status; membership revocation is `revoked_at` |
+| No hard deletes                             | `archived_at` + terminal `archived` status; membership revocation is `revoked_at`                                                                             |
 
 ## Error handling
 
 Four handlers in `app/main.py` produce one envelope for the entire API.
 
-| Raised | Status | Notes |
-|---|---|---|
-| `AuthenticationError` | 401 | codes: `token_missing`, `token_invalid`, `token_expired`, `token_wrong_type` |
-| `PermissionDeniedError` | 403 | carries `required_permission` |
-| `NotFoundError` | 404 | also used for cross-tenant reads |
-| `ConflictError` / `InvalidTransitionError` / `ImmutableEntityError` | 409 | transition errors carry current/requested status |
-| `PolicyViolationError` / `DomainValidationError` | 422 | e.g. `activation_blocked` with the blocker list |
-| `RequestValidationError` | 422 | only `location`, `message`, `type` are copied out |
-| anything else | 500 | traceback to the log, nothing internal to the client |
+| Raised                                                              | Status | Notes                                                                        |
+| ------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
+| `AuthenticationError`                                               | 401    | codes: `token_missing`, `token_invalid`, `token_expired`, `token_wrong_type` |
+| `PermissionDeniedError`                                             | 403    | carries `required_permission`                                                |
+| `NotFoundError`                                                     | 404    | also used for cross-tenant reads                                             |
+| `ConflictError` / `InvalidTransitionError` / `ImmutableEntityError` | 409    | transition errors carry current/requested status                             |
+| `PolicyViolationError` / `DomainValidationError`                    | 422    | e.g. `activation_blocked` with the blocker list                              |
+| `RequestValidationError`                                            | 422    | only `location`, `message`, `type` are copied out                            |
+| anything else                                                       | 500    | traceback to the log, nothing internal to the client                         |
 
 Two details that are easy to get wrong and were fixed here:
 
@@ -188,7 +188,7 @@ Two non-obvious constraints, both discovered by measurement:
 
 - Module-level loggers must stay **lazy**. `structlog.get_logger(...)` returns a
   proxy that materialises on first use, i.e. after `configure_logging` has run.
-  Calling `.bind()` at import time freezes structlog's *default* processor chain,
+  Calling `.bind()` at import time freezes structlog's _default_ processor chain,
   whose exception formatter is rich's — and rich pretty-prints every frame's
   locals. One unhandled request exception rendered that way took **253 seconds** of
   CPU and 472 million function calls.
@@ -197,13 +197,13 @@ Two non-obvious constraints, both discovered by measurement:
 
 ## Deployment shape
 
-| Service | Command | Notes |
-|---|---|---|
-| `api` | `uvicorn app.main:app` | stateless, horizontally scalable |
-| `worker` | `arq worker.main.WorkerSettings` | same image, same domain code, different process type |
-| `postgres` | — | single primary |
-| `redis` | — | queue + cache |
-| `minio` | — | S3-compatible in production |
+| Service    | Command                          | Notes                                                |
+| ---------- | -------------------------------- | ---------------------------------------------------- |
+| `api`      | `uvicorn app.main:app`           | stateless, horizontally scalable                     |
+| `worker`   | `arq worker.main.WorkerSettings` | same image, same domain code, different process type |
+| `postgres` | —                                | single primary                                       |
+| `redis`    | —                                | queue + cache                                        |
+| `minio`    | —                                | S3-compatible in production                          |
 
 `apps/worker` deliberately contains only the ARQ settings module. The worker needs
 the same models, services and repositories as the API; duplicating them, or putting

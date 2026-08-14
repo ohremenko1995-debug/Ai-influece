@@ -18,30 +18,38 @@ without a recorded commercial-use confirmation.
 MVP **step 1 and step 2** are implemented and verified. Later steps are scoped but
 not built — see [Roadmap](#roadmap).
 
-| Area | State |
-|---|---|
-| Docker Compose stack (postgres, redis, minio, api, worker, web) | authored, **not executed in CI** (see [Known limitations](#known-limitations)) |
-| FastAPI app, config, structured logging, error envelope, health probes | done |
-| Schema: Organization, User, Membership, DisclosurePolicy, Influencer, InfluencerVersion, AuditLog | done, migration `0001` |
-| Auth: password login, refresh, development stub | done |
-| RBAC: 7 roles, 43 permissions, agent fence | done |
-| Influencer registry + lifecycle state machine | done |
-| Character Bible versioning (append-only) | done |
-| Audit log with before/after diffs | done |
-| Web app shell: login, dashboard, influencer list/detail | done |
-| Assets, recipes, content factory, generation jobs, QA, approvals, calendar | **not started** |
+| Area                                                                                              | State                                                                          |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Docker Compose stack (postgres, redis, minio, api, worker, web)                                   | authored, **not executed in CI** (see [Known limitations](#known-limitations)) |
+| FastAPI app, config, structured logging, error envelope, health probes                            | done                                                                           |
+| Schema: Organization, User, Membership, DisclosurePolicy, Influencer, InfluencerVersion, AuditLog | done, migration `0001`                                                         |
+| Auth: password login, refresh, development stub                                                   | done                                                                           |
+| RBAC: 7 roles, 43 permissions, agent fence                                                        | done                                                                           |
+| Influencer registry + lifecycle state machine                                                     | done                                                                           |
+| Character Bible versioning (append-only)                                                          | done                                                                           |
+| Audit log with before/after diffs                                                                 | done                                                                           |
+| Web app shell: login, dashboard, influencer list/detail                                           | done                                                                           |
+| Assets, recipes, content factory, generation jobs, QA, approvals, calendar                        | **not started**                                                                |
 
-Backend quality gates, all green:
+Quality gates, all green:
 
-```
-ruff check       All checks passed
-ruff format      90 files already formatted
-mypy (strict)    no issues found in 89 source files
-pytest           194 passed
-```
+| Gate                  | Result                                                                |
+| --------------------- | --------------------------------------------------------------------- |
+| `ruff check`          | All checks passed                                                     |
+| `ruff format --check` | 90 files already formatted                                            |
+| `mypy --strict`       | no issues found in 89 source files                                    |
+| `pytest`              | **194 passed**                                                        |
+| `tsc --noEmit`        | 3 packages, no errors                                                 |
+| `eslint`              | 0 errors (1 informational React Compiler notice about TanStack Table) |
+| `prettier --check`    | all files match                                                       |
+| `vitest`              | **52 passed**                                                         |
+| `next build`          | compiled, 7 routes                                                    |
 
-Tests run against a real PostgreSQL 16 database and build the schema by running
-the Alembic migrations, so every run also proves the migrations apply and reverse.
+Backend tests run against a real PostgreSQL 16 database and build the schema by
+running the Alembic migrations, so every run also proves the migrations apply and
+reverse. The web app was additionally driven in a real browser against the running
+API — login, dashboard, influencer list, all four detail tabs, Character Bible
+versions and the audit trail.
 
 ---
 
@@ -56,23 +64,23 @@ make seed         # create a dev organization and one user per role
 
 Then open:
 
-| Service | URL |
-|---|---|
-| Web app | http://localhost:3000 |
-| API docs | http://localhost:8000/docs |
-| MinIO console | http://localhost:9001 |
+| Service       | URL                        |
+| ------------- | -------------------------- |
+| Web app       | http://localhost:3000      |
+| API docs      | http://localhost:8000/docs |
+| MinIO console | http://localhost:9001      |
 
 Seeded development logins (password `influenceros`):
 
-| Role | Email |
-|---|---|
-| owner | owner@influenceros.example.com |
-| creative_lead | creative@influenceros.example.com |
-| operator | operator@influenceros.example.com |
-| reviewer | reviewer@influenceros.example.com |
-| compliance | compliance@influenceros.example.com |
-| analyst | analyst@influenceros.example.com |
-| agent | agent@influenceros.example.com |
+| Role          | Email                               |
+| ------------- | ----------------------------------- |
+| owner         | owner@influenceros.example.com      |
+| creative_lead | creative@influenceros.example.com   |
+| operator      | operator@influenceros.example.com   |
+| reviewer      | reviewer@influenceros.example.com   |
+| compliance    | compliance@influenceros.example.com |
+| analyst       | analyst@influenceros.example.com    |
+| agent         | agent@influenceros.example.com      |
 
 Working without Docker, or running the quality gates, is covered in
 [docs/local-development.md](docs/local-development.md).
@@ -166,16 +174,16 @@ Errors always use one envelope:
 
 Steps are implemented strictly in order; each ends with green gates.
 
-| Step | Scope | State |
-|---|---|---|
-| 1 | Compose stack, API skeleton, org/membership, migrations, auth stub | **done** |
-| 2 | Influencer CRUD, Character Bible versions, RBAC, audit log | **done** |
-| 3 | MinIO presigned uploads, Asset Library, golden references | next |
-| 4 | Recipes and immutable recipe versions, LoRA/workflow attachment | planned |
-| 5 | ContentBrief, Kanban, script versions, brief state machine | planned |
-| 6 | GenerationJob, ARQ worker, `FakeGenerationProvider`, lineage | planned |
-| 7 | QA reviews, Approval Center, approval gate before calendar | planned |
-| 8 | Calendar scheduling, operational dashboard widgets | planned |
+| Step | Scope                                                              | State    |
+| ---- | ------------------------------------------------------------------ | -------- |
+| 1    | Compose stack, API skeleton, org/membership, migrations, auth stub | **done** |
+| 2    | Influencer CRUD, Character Bible versions, RBAC, audit log         | **done** |
+| 3    | MinIO presigned uploads, Asset Library, golden references          | next     |
+| 4    | Recipes and immutable recipe versions, LoRA/workflow attachment    | planned  |
+| 5    | ContentBrief, Kanban, script versions, brief state machine         | planned  |
+| 6    | GenerationJob, ARQ worker, `FakeGenerationProvider`, lineage       | planned  |
+| 7    | QA reviews, Approval Center, approval gate before calendar         | planned  |
+| 8    | Calendar scheduling, operational dashboard widgets                 | planned  |
 
 **Explicit non-goals for the MVP:** automatic publishing to Instagram / TikTok /
 YouTube, automated DM or comment replies, autonomous agents that may change policy
@@ -210,10 +218,10 @@ Stated plainly, because these are the things a reader would otherwise assume wor
 
 ## Documentation
 
-| Document | Contents |
-|---|---|
-| [docs/architecture.md](docs/architecture.md) | module boundaries, request lifecycle, transactions, deployment shape |
-| [docs/domain-model.md](docs/domain-model.md) | every entity, every status, the transition rules |
-| [docs/local-development.md](docs/local-development.md) | setup with and without Docker, quality gates, troubleshooting |
-| [docs/security.md](docs/security.md) | authn, authz, tenancy, secrets, disclosure obligations, threat notes |
-| [docs/adr/](docs/adr/) | architecture decision records 0001–0007 |
+| Document                                               | Contents                                                             |
+| ------------------------------------------------------ | -------------------------------------------------------------------- |
+| [docs/architecture.md](docs/architecture.md)           | module boundaries, request lifecycle, transactions, deployment shape |
+| [docs/domain-model.md](docs/domain-model.md)           | every entity, every status, the transition rules                     |
+| [docs/local-development.md](docs/local-development.md) | setup with and without Docker, quality gates, troubleshooting        |
+| [docs/security.md](docs/security.md)                   | authn, authz, tenancy, secrets, disclosure obligations, threat notes |
+| [docs/adr/](docs/adr/)                                 | architecture decision records 0001–0007                              |

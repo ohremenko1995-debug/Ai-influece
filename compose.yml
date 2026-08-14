@@ -64,7 +64,10 @@ services:
       - ./infra/docker/postgres/init-test-db.sh:/docker-entrypoint-initdb.d/10-init-test-db.sh:ro
     healthcheck:
       test:
-        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-influenceros} -d ${POSTGRES_DB:-influenceros}"]
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-influenceros} -d ${POSTGRES_DB:-influenceros}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -91,8 +94,8 @@ services:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-influenceros}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-influenceros}
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # web console
+      - "9000:9000" # S3 API
+      - "9001:9001" # web console
     volumes:
       - minio-data:/data
     healthcheck:

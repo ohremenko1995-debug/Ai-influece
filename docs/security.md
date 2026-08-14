@@ -9,13 +9,13 @@ what a reader must not assume works.
 
 Email and password, argon2id hashing, stateless HS256 JWTs.
 
-| Property | Value |
-|---|---|
-| Password hash | argon2id via `argon2-cffi` (RFC 9106 defaults) |
-| Access token TTL | 30 minutes (`ACCESS_TOKEN_TTL_MINUTES`) |
-| Refresh token TTL | 7 days (`REFRESH_TOKEN_TTL_MINUTES`) |
-| Signing | HS256, key ≥32 bytes |
-| Required claims | `sub`, `iat`, `exp`, `jti`, `typ`, optional `org` |
+| Property          | Value                                             |
+| ----------------- | ------------------------------------------------- |
+| Password hash     | argon2id via `argon2-cffi` (RFC 9106 defaults)    |
+| Access token TTL  | 30 minutes (`ACCESS_TOKEN_TTL_MINUTES`)           |
+| Refresh token TTL | 7 days (`REFRESH_TOKEN_TTL_MINUTES`)              |
+| Signing           | HS256, key ≥32 bytes                              |
+| Required claims   | `sub`, `iat`, `exp`, `jti`, `typ`, optional `org` |
 
 Implemented protections:
 
@@ -25,14 +25,14 @@ Implemented protections:
   fixed at `["HS256"]`.
 - **User enumeration is limited.** A login for an unknown address still performs an
   argon2 verification against a constant dummy hash, and both the unknown-address
-  and wrong-password cases return the identical message *"Email or password is
-  incorrect"*.
+  and wrong-password cases return the identical message _"Email or password is
+  incorrect"_.
 - **Only `active` users authenticate.** `invited`, `suspended` and `disabled` are
   refused with `account_inactive`.
 - **Password hashes are re-hashed transparently** when argon2 parameters change.
 - **Credential material never leaves the process.** `password_hash` is absent from
   every response model, and the audit snapshot writes `[redacted]` in its place —
-  visible as *changed*, never as a value.
+  visible as _changed_, never as a value.
 - **Short signing keys are surfaced, not silenced.** PyJWT warns below 32 bytes
   (RFC 7518 §3.2); the development placeholder is deliberately long enough not to
   warn, and non-development environments refuse to boot with a short key.
@@ -42,7 +42,7 @@ Implemented protections:
 There is no server-side session store on the MVP. A leaked access token remains
 valid until it expires, and a refresh token for up to 7 days. Mitigations in place:
 a short access TTL, and `status` on `User` — flipping a user to `disabled` blocks
-the *next* request, because `get_current_actor` re-loads the user and the membership
+the _next_ request, because `get_current_actor` re-loads the user and the membership
 on every call rather than trusting the token's contents.
 
 A `sessions` table with a `jti` denylist is the intended fix and is recorded in
@@ -70,23 +70,23 @@ Endpoints depend on **permissions**, never on roles. Reshaping a role is a chang
 
 Checks happen twice, on purpose:
 
-| Layer | Purpose |
-|---|---|
-| `RequirePermission(...)` route dependency | fails before the handler body; visible in the OpenAPI document |
+| Layer                                          | Purpose                                                                                   |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `RequirePermission(...)` route dependency      | fails before the handler body; visible in the OpenAPI document                            |
 | `actor.require_permission(...)` in the service | protects every caller, including the worker and the CLI, which never pass through a route |
 
 ### Separation of duties
 
 The role that produces content does not approve it.
 
-| Capability | Roles |
-|---|---|
-| request approval | `owner`, `creative_lead`, `operator`, `reviewer`, `compliance` |
-| decide approval (low/medium risk) | `owner`, `reviewer`, `compliance` |
-| decide approval (high risk) | `owner`, `compliance` |
-| author/modify disclosure policy | `owner`, `compliance` |
-| schedule content | `owner`, `creative_lead` |
-| connect a social account | `owner` |
+| Capability                        | Roles                                                          |
+| --------------------------------- | -------------------------------------------------------------- |
+| request approval                  | `owner`, `creative_lead`, `operator`, `reviewer`, `compliance` |
+| decide approval (low/medium risk) | `owner`, `reviewer`, `compliance`                              |
+| decide approval (high risk)       | `owner`, `compliance`                                          |
+| author/modify disclosure policy   | `owner`, `compliance`                                          |
+| schedule content                  | `owner`, `creative_lead`                                       |
+| connect a social account          | `owner`                                                        |
 
 `creative_lead` may schedule but may not decide an approval — and scheduling still
 requires an approved `ApprovalTask`, so the scheduling permission is not a way past
@@ -147,27 +147,27 @@ Tests cover each of these with a second seeded tenant.
 
 ## Data protection
 
-| Concern | Handling |
-|---|---|
-| Passwords | argon2id, never logged, `[redacted]` in audit snapshots |
-| Tokens | not persisted; `repr=False` on the request fields |
-| Asset storage | private bucket, anonymous access explicitly denied, presigned URLs only (step 3) |
-| Presigned URL TTL | 900 s default, capped at 3600 s |
-| Secrets in config | `.env.example` holds annotated placeholders only; production values come from the secret manager |
-| CORS | explicit origin list; `*` is rejected by a validator |
-| Error responses | internal exception text is never returned; 500 responses carry only a code and the request id |
+| Concern           | Handling                                                                                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Passwords         | argon2id, never logged, `[redacted]` in audit snapshots                                                                                                     |
+| Tokens            | not persisted; `repr=False` on the request fields                                                                                                           |
+| Asset storage     | private bucket, anonymous access explicitly denied, presigned URLs only (step 3)                                                                            |
+| Presigned URL TTL | 900 s default, capped at 3600 s                                                                                                                             |
+| Secrets in config | `.env.example` holds annotated placeholders only; production values come from the secret manager                                                            |
+| CORS              | explicit origin list; `*` is rejected by a validator                                                                                                        |
+| Error responses   | internal exception text is never returned; 500 responses carry only a code and the request id                                                               |
 | Validation errors | only `location`, `message`, `type` are copied out — never pydantic's `ctx` (a live exception object) or `input` (the rejected value, possibly a credential) |
 
 ### No hard deletes
 
 Production entities are never removed.
 
-| Entity | Retirement |
-|---|---|
-| `Influencer` | `status=archived` + `archived_at`; terminal and read-only |
-| `Membership` | `revoked_at`; the row explains who had access historically |
-| `InfluencerVersion` | never retired; superseded by a new version |
-| `AuditLog` | append-only; no update or delete path exists |
+| Entity              | Retirement                                                 |
+| ------------------- | ---------------------------------------------------------- |
+| `Influencer`        | `status=archived` + `archived_at`; terminal and read-only  |
+| `Membership`        | `revoked_at`; the row explains who had access historically |
+| `InfluencerVersion` | never retired; superseded by a new version                 |
+| `AuditLog`          | append-only; no update or delete path exists               |
 
 ---
 
@@ -194,7 +194,7 @@ order.
 
 A failed login is audited when the address belongs to a known user with an active
 membership — that gives per-tenant brute-force visibility. Attempts against
-*unknown* addresses have no organization to file under (`organization_id` is
+_unknown_ addresses have no organization to file under (`organization_id` is
 non-null), so they are logged via structlog only. A separate, non-tenant-scoped
 security-events stream is the right home for those.
 
@@ -242,12 +242,12 @@ rights. Requests for such features should be refused, not designed around.
 
 Stated so it is not assumed:
 
-| Missing | Consequence |
-|---|---|
-| Token revocation / session store | a leaked token is valid until expiry |
-| Rate limiting on `/auth/login` | brute force is visible in the audit log but not blocked |
-| MFA / SSO | password only; `password_hash` is nullable to allow SSO later |
-| Database-level immutability triggers | app-level only for version rows |
-| Field-level encryption at rest | relies on disk/volume encryption |
-| Signed webhooks, IP allowlists | no inbound integrations yet |
-| Verified object-storage path | `s3.py` provides the client and probe only; uploads arrive with step 3 |
+| Missing                              | Consequence                                                            |
+| ------------------------------------ | ---------------------------------------------------------------------- |
+| Token revocation / session store     | a leaked token is valid until expiry                                   |
+| Rate limiting on `/auth/login`       | brute force is visible in the audit log but not blocked                |
+| MFA / SSO                            | password only; `password_hash` is nullable to allow SSO later          |
+| Database-level immutability triggers | app-level only for version rows                                        |
+| Field-level encryption at rest       | relies on disk/volume encryption                                       |
+| Signed webhooks, IP allowlists       | no inbound integrations yet                                            |
+| Verified object-storage path         | `s3.py` provides the client and probe only; uploads arrive with step 3 |

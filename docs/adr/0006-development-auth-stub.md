@@ -19,9 +19,9 @@ tool for a small team, but it holds production identity and approval records.
 
 ### Stateless HS256 JWTs, access plus refresh
 
-| Token | TTL | Claims |
-|---|---|---|
-| access | 30 min | `sub`, `typ=access`, `iat`, `exp`, `jti`, `org?` |
+| Token   | TTL    | Claims                                            |
+| ------- | ------ | ------------------------------------------------- |
+| access  | 30 min | `sub`, `typ=access`, `iat`, `exp`, `jti`, `org?`  |
 | refresh | 7 days | `sub`, `typ=refresh`, `iat`, `exp`, `jti`, `org?` |
 
 No session table. Chosen for the MVP because the alternative costs a database read on
@@ -33,7 +33,7 @@ token. The algorithm list is fixed at `["HS256"]`, so `alg: none` and asymmetric
 confusion attacks are rejected. Required claims are declared, so a token without `exp`
 is invalid rather than eternal.
 
-The `org` claim is a *hint*, not an authorization. `get_current_actor` re-loads the
+The `org` claim is a _hint_, not an authorization. `get_current_actor` re-loads the
 user and the membership on every request, so:
 
 - setting `User.status = disabled` blocks the **next** request, without revocation;
@@ -102,7 +102,7 @@ account never will.
 - **No revocation.** A leaked access token is valid for up to 30 minutes, a refresh
   token for up to 7 days. There is no logout-everywhere.
 - **No rate limiting** on `/auth/login`. Failed attempts against known accounts are
-  audited, so brute force is *visible*, but it is not blocked.
+  audited, so brute force is _visible_, but it is not blocked.
 - **No MFA or SSO.**
 - Rotating `SECRET_KEY` invalidates every session at once — the only revocation
   mechanism available, and a blunt one.
@@ -116,10 +116,10 @@ handful of known accounts on an internal tool.
 
 ## Alternatives considered
 
-| Alternative | Why not |
-|---|---|
-| Server-side sessions from the start | A database read per request and a revocation store, before there is a user population that needs it. Easy to add later behind the same `TokenClaims` boundary. |
-| A single shared dev token in `.env` | Cannot represent seven roles, and a hardcoded credential in a file is exactly the thing that leaks into a deployed environment. |
-| `if DEBUG` around the stub | One variable, one layer. The failure mode — a passwordless login in production — is severe enough to justify two independent conditions and a boot-time refusal. |
-| Auth0 / Clerk / an external IdP | Sensible for a product with external users. For an internal tool it adds an external dependency and a network hop to log in, and does not remove the need for the local role-switching affordance. |
-| Asymmetric RS256 | Useful when a separate service must verify tokens without the signing key. There is one verifier here (the API), so HS256 is simpler with no loss. |
+| Alternative                         | Why not                                                                                                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server-side sessions from the start | A database read per request and a revocation store, before there is a user population that needs it. Easy to add later behind the same `TokenClaims` boundary.                                     |
+| A single shared dev token in `.env` | Cannot represent seven roles, and a hardcoded credential in a file is exactly the thing that leaks into a deployed environment.                                                                    |
+| `if DEBUG` around the stub          | One variable, one layer. The failure mode — a passwordless login in production — is severe enough to justify two independent conditions and a boot-time refusal.                                   |
+| Auth0 / Clerk / an external IdP     | Sensible for a product with external users. For an internal tool it adds an external dependency and a network hop to log in, and does not remove the need for the local role-switching affordance. |
+| Asymmetric RS256                    | Useful when a separate service must verify tokens without the signing key. There is one verifier here (the API), so HS256 is simpler with no loss.                                                 |

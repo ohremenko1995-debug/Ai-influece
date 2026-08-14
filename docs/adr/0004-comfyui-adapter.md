@@ -37,10 +37,10 @@ class GenerationProvider(Protocol):
 
 Selected by `GENERATION_PROVIDER`:
 
-| Value | Implementation | Use |
-|---|---|---|
-| `fake` | `FakeGenerationProvider` | local development, tests, CI — deterministic, no GPU |
-| `comfyui` | `ComfyUIProvider` | a reachable ComfyUI instance |
+| Value     | Implementation           | Use                                                  |
+| --------- | ------------------------ | ---------------------------------------------------- |
+| `fake`    | `FakeGenerationProvider` | local development, tests, CI — deterministic, no GPU |
+| `comfyui` | `ComfyUIProvider`        | a reachable ComfyUI instance                         |
 
 A `Protocol`, not an abstract base class: the adapters share no implementation, and
 structural typing keeps the test double free of an inheritance dependency on
@@ -81,7 +81,7 @@ lets a duplicate be recognised instead of re-stored.
 
 `GenerationJob.idempotency_key` is unique per organization and is also the ARQ job id.
 ARQ deduplicates on job id, so a repeated submission is a no-op at the queue layer
-*and* at the database layer, rather than a second paid generation. This is the
+_and_ at the database layer, rather than a second paid generation. This is the
 platform rule "every external side effect must have an idempotency key" made concrete.
 
 ### Retry policy
@@ -89,10 +89,10 @@ platform rule "every external side effect must have an idempotency key" made con
 Bounded exponential backoff (`COMFYUI_MAX_RETRIES`, default 3), and a hard
 distinction:
 
-| Class | Examples | Retried |
-|---|---|---|
-| Recoverable | connection refused, timeout, 502/503, queue full, transient OOM | yes, with backoff |
-| Non-recoverable | schema validation failure, unknown node, missing model, malformed workflow, 4xx | **no** |
+| Class           | Examples                                                                        | Retried           |
+| --------------- | ------------------------------------------------------------------------------- | ----------------- |
+| Recoverable     | connection refused, timeout, 502/503, queue full, transient OOM                 | yes, with backoff |
+| Non-recoverable | schema validation failure, unknown node, missing model, malformed workflow, 4xx | **no**            |
 
 Retrying a validation error cannot succeed. It burns GPU time, delays the operator's
 feedback, and hides the real cause behind a timeout.
@@ -133,9 +133,9 @@ dependency.
 
 ## Alternatives considered
 
-| Alternative | Why not |
-|---|---|
-| Call ComfyUI directly from the API | An unbounded external call inside a request; no retry, no cancellation, no progress, and the browser would need reachability to the GPU host. |
-| Build workflow JSON from user prompts | Removes the ability to say which workflow produced an output, and turns a prompt field into arbitrary graph execution. |
-| Celery instead of ARQ | The stack is async end to end (FastAPI + SQLAlchemy async + asyncpg). ARQ is async-native, so the worker reuses the same services and session handling unchanged. Celery's prefork model would need a sync bridge for every domain call. |
-| A dedicated generation microservice | The worker already isolates GPU work in its own process. A separate service would add a network hop and a second source of truth for job state without changing the failure model. |
+| Alternative                           | Why not                                                                                                                                                                                                                                  |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Call ComfyUI directly from the API    | An unbounded external call inside a request; no retry, no cancellation, no progress, and the browser would need reachability to the GPU host.                                                                                            |
+| Build workflow JSON from user prompts | Removes the ability to say which workflow produced an output, and turns a prompt field into arbitrary graph execution.                                                                                                                   |
+| Celery instead of ARQ                 | The stack is async end to end (FastAPI + SQLAlchemy async + asyncpg). ARQ is async-native, so the worker reuses the same services and session handling unchanged. Celery's prefork model would need a sync bridge for every domain call. |
+| A dedicated generation microservice   | The worker already isolates GPU work in its own process. A separate service would add a network hop and a second source of truth for job state without changing the failure model.                                                       |
