@@ -1,0 +1,46 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# --- Node ---
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+playwright-report/
+test-results/
+blob-report/
+
+# --- Generated contracts ---
+docs/api/openapi.json
+packages/types/src/generated/
+
+# --- Local environment ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Local service data ---
+.data/
+infra/docker/volumes/
+
+# --- Editors / OS ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

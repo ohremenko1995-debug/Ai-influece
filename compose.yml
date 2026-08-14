@@ -1,0 +1,202 @@
+name: influenceros
+
+# ---------------------------------------------------------------------------
+# Local development stack.
+#
+# Six long-lived services (postgres, redis, minio, api, worker, web) plus a
+# one-shot `minio-init` job that provisions the asset bucket.
+#
+# The api and worker run from the SAME image (infra/docker/api.Dockerfile) with
+# different entrypoints — see docs/adr/0001-modular-monolith.md.
+# ---------------------------------------------------------------------------
+
+x-postgres-env: &postgres-env
+  POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  POSTGRES_USER: ${POSTGRES_USER:-influenceros}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-influenceros}
+  POSTGRES_DB: ${POSTGRES_DB:-influenceros}
+  POSTGRES_TEST_DB: ${POSTGRES_TEST_DB:-influenceros_test}
+
+x-redis-env: &redis-env
+  REDIS_HOST: ${REDIS_HOST:-redis}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_DB: ${REDIS_DB:-0}
+
+x-s3-env: &s3-env
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+  S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_BUCKET: ${S3_BUCKET:-influenceros-assets}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-influenceros}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-influenceros}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+  S3_PRESIGN_TTL_SECONDS: ${S3_PRESIGN_TTL_SECONDS:-900}
+
+x-app-env: &app-env
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: ${LOG_FORMAT:-console}
+  SECRET_KEY: ${SECRET_KEY:-dev-only-insecure-placeholder-change-me-before-any-real-use}
+  ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-30}
+  REFRESH_TOKEN_TTL_MINUTES: ${REFRESH_TOKEN_TTL_MINUTES:-10080}
+  DEV_AUTH_ENABLED: ${DEV_AUTH_ENABLED:-true}
+  API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:3000}
+  GENERATION_PROVIDER: ${GENERATION_PROVIDER:-fake}
+  COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://host.docker.internal:8188}
+  COMFYUI_TIMEOUT_SECONDS: ${COMFYUI_TIMEOUT_SECONDS:-30}
+  COMFYUI_MAX_RETRIES: ${COMFYUI_MAX_RETRIES:-3}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-influenceros}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-influenceros}
+      POSTGRES_DB: ${POSTGRES_DB:-influenceros}
+      POSTGRES_TEST_DB: ${POSTGRES_TEST_DB:-influenceros_test}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Creates the dedicated test database on first cluster init.
+      - ./infra/docker/postgres/init-test-db.sh:/docker-entrypoint-initdb.d/10-init-test-db.sh:ro
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-influenceros} -d ${POSTGRES_DB:-influenceros}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-influenceros}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-influenceros}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # One-shot: creates the asset bucket and blocks anonymous access.
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      <<: *s3-env
+    entrypoint: ["/bin/sh", "/scripts/init-bucket.sh"]
+    volumes:
+      - ./infra/docker/minio/init-bucket.sh:/scripts/init-bucket.sh:ro
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    restart: unless-stopped
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --reload
+    environment:
+      <<: [*app-env, *postgres-env, *redis-env, *s3-env]
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      # Bind-mount source for hot reload; the installed venv stays inside the image.
+      - ./apps/api:/app/apps/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request,sys;
+          sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health/live',
+          timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/worker.Dockerfile
+    restart: unless-stopped
+    command: ["arq", "worker.main.WorkerSettings"]
+    environment:
+      <<: [*app-env, *postgres-env, *redis-env, *s3-env]
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./apps/worker:/app/apps/worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@influenceros/web", "dev"]
+    environment:
+      NODE_ENV: development
+      # Browser-side base URL — must be reachable from the host, not the network alias.
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages:/app/packages
+      # Keep container-installed node_modules out of the host bind mount.
+      - web-node-modules:/app/node_modules
+      - web-next-cache:/app/apps/web/.next
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  web-node-modules:
+  web-next-cache:
