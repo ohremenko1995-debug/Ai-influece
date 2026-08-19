@@ -41,8 +41,10 @@ Rules:
 
 ### Worker packaging
 
-`apps/worker` contains only the ARQ `WorkerSettings` module and its Dockerfile. The
-domain code lives in `apps/api/app` and the worker image installs that package.
+`apps/worker` contains the ARQ `WorkerSettings` module and its Dockerfile. The domain
+code lives in `apps/api/app` and the worker image installs that package. The only job
+registered there is a database heartbeat, because ARQ will not start a worker with an
+empty registry and a no-op task would be a placeholder reporting success.
 
 The worker needs the same models, services and repositories as the API. Duplicating
 them, or putting them behind an internal HTTP call, would create two sources of truth

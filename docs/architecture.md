@@ -205,9 +205,17 @@ Two non-obvious constraints, both discovered by measurement:
 | `redis`    | —                                | queue + cache                                        |
 | `minio`    | —                                | S3-compatible in production                          |
 
-`apps/worker` deliberately contains only the ARQ settings module. The worker needs
-the same models, services and repositories as the API; duplicating them, or putting
-them behind an internal HTTP call, would create two sources of truth for the domain.
+`apps/worker` contains the ARQ settings module and nothing else of substance. The
+worker needs the same models, services and repositories as the API; duplicating them,
+or putting them behind an internal HTTP call, would create two sources of truth for
+the domain.
+
+Its one registered job is a per-minute database heartbeat. ARQ refuses to construct a
+worker with no functions and no cron jobs, so _something_ has to be registered; a
+no-op task that reports success would violate the rule against placeholders, and the
+heartbeat is the smallest thing that is genuinely worth having — the worker container
+has no HTTP surface, so without it a worker that has lost its database connection
+looks exactly like an idle one. Generation tasks arrive with step 6.
 
 ## What is intentionally absent
 

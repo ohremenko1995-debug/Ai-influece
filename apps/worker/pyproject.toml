@@ -1,0 +1,24 @@
+# The worker has no dependencies of its own: it runs inside the API image, which
+# installs `apps/api` and therefore the whole domain. This file exists only so the
+# quality gates apply the same rules here as they do there.
+#
+# Ruff supports `extend`, so lint rules have one source of truth. MyPy has no
+# equivalent, so its flags are repeated below and must be kept in sync with
+# apps/api/pyproject.toml.
+
+[tool.ruff]
+extend = "../api/pyproject.toml"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+disallow_any_generics = true
+plugins = ["pydantic.mypy"]
+# The domain lives in the sibling package and is imported, not vendored.
+mypy_path = "../api"
+
+[[tool.mypy.overrides]]
+module = ["arq.*"]
+ignore_missing_imports = true

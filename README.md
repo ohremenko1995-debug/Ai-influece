@@ -38,7 +38,7 @@ Quality gates, all green:
 | `ruff check`          | All checks passed                                                     |
 | `ruff format --check` | 90 files already formatted                                            |
 | `mypy --strict`       | no issues found in 89 source files                                    |
-| `pytest`              | **194 passed**                                                        |
+| `pytest`              | **199 passed**                                                        |
 | `tsc --noEmit`        | 3 packages, no errors                                                 |
 | `eslint`              | 0 errors (1 informational React Compiler notice about TanStack Table) |
 | `prettier --check`    | all files match                                                       |
@@ -201,8 +201,9 @@ Stated plainly, because these are the things a reader would otherwise assume wor
   and service wiring are not.
 - **MinIO / object storage is unverified.** `app/shared/storage/s3.py` provides the
   client and the readiness probe only. Presigned uploads arrive with step 3.
-- **The worker has no tasks yet.** `apps/worker` holds the ARQ settings; job
-  execution arrives with step 6.
+- **The worker has no domain tasks yet.** `apps/worker` holds the ARQ settings and a
+  database heartbeat — the latter only because ARQ refuses to start a worker with
+  nothing registered. Generation jobs arrive with step 6.
 - **No token revocation.** Access and refresh tokens are stateless JWTs with no
   server-side session table, so a leaked token stays valid until it expires. Access
   TTL is 30 minutes by default. See [docs/security.md](docs/security.md).
@@ -211,7 +212,7 @@ Stated plainly, because these are the things a reader would otherwise assume wor
   exposes no mutating method, but a direct `UPDATE` in psql would succeed. A
   trigger is proposed in [ADR-0002](docs/adr/0002-versioned-production-assets.md).
 - **Playwright E2E is not yet wired.** The end-to-end path is currently verified
-  through the API (194 backend tests, plus a scripted live walkthrough). The
+  through the API (199 backend tests, plus a scripted live walkthrough). The
   browser-level E2E belongs with step 5, when there is a Kanban flow worth driving.
 
 ---

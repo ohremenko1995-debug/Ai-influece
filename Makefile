@@ -11,6 +11,10 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 .ONESHELL:
+# Required with .ONESHELL: the whole recipe is one shell invocation, so without `-e`
+# make would only look at the *last* command's exit status. `make lint-api` would
+# report success on a failing `ruff check` as long as the format check passed.
+.SHELLFLAGS := -e -o pipefail -c
 
 COMPOSE      ?= docker compose
 PYTHON       ?= python3.12
@@ -154,7 +158,8 @@ typecheck: typecheck-api typecheck-web ## Type-check backend and frontend
 
 .PHONY: typecheck-api
 typecheck-api: ## MyPy strict
-	cd $(API_DIR) && ../../$(VENV_BIN)/mypy .
+	(cd $(API_DIR) && ../../$(VENV_BIN)/mypy .)
+	(cd $(WORKER_DIR) && ../../$(VENV_BIN)/mypy .)
 
 .PHONY: typecheck-web
 typecheck-web: ## tsc --noEmit across the workspace
@@ -184,11 +189,11 @@ e2e: ## Playwright end-to-end suite (needs the stack running)
 .PHONY: openapi
 openapi: ## Export docs/api/openapi.json and regenerate packages/types
 	mkdir -p $(dir $(OPENAPI_JSON))
-	cd $(API_DIR) && ../../$(VENV_BIN)/python -m app.cli export-openapi --output ../../$(OPENAPI_JSON)
+	(cd $(API_DIR) && ../../$(VENV_BIN)/python -m app.cli export-openapi --output ../../$(OPENAPI_JSON))
 	$(PNPM) --filter @influenceros/types run generate
 
 .PHONY: clean
 clean: ## Remove caches and build output
 	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .ruff_cache \
-	  -o -name .mypy_cache -o -name .next -o -name .turbo \) -prune -exec rm -rf {} +
+	  -o -name .mypy_cache -o -name .next -o -name .turbo \) -prune -exec rm -rf {} + || true
 	rm -f $(OPENAPI_JSON)

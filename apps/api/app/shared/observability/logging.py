@@ -86,7 +86,12 @@ def configure_logging(settings: Settings) -> None:
         level=settings.log_level,
         force=True,
     )
-    for noisy in ("uvicorn.access", "uvicorn.error"):
+    # These libraries install their own handler *and* propagate to the root, so
+    # every line they emit is printed twice — once in their format, once in ours.
+    # Dropping their handler leaves a single stream in the format LOG_FORMAT asked
+    # for. `arq` is in the list because its CLI configures logging before the
+    # worker's startup hook runs; in the API process the clear is a no-op.
+    for noisy in ("uvicorn.access", "uvicorn.error", "arq"):
         logging.getLogger(noisy).handlers.clear()
         logging.getLogger(noisy).propagate = True
 

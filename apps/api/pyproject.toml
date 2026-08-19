@@ -125,6 +125,10 @@ warn_no_return = true
 disallow_any_generics = true
 plugins = ["pydantic.mypy"]
 exclude = ['^alembic/versions/', '^\.venv/']
+# `tests/test_worker_settings.py` imports the worker's settings module. The worker is
+# a separate deployment unit, not an installed dependency, so its root is declared
+# here rather than vendored.
+mypy_path = "../worker"
 
 [[tool.mypy.overrides]]
 module = ["arq.*"]
