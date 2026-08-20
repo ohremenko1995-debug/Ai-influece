@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
 import { meApi, queryKeys } from "@/lib/api";
-import { useSessionStore } from "@/lib/auth-store";
+import { useSessionHydrated, useSessionStore } from "@/lib/auth-store";
 
 /**
  * The resolved session.
@@ -14,9 +14,14 @@ import { useSessionStore } from "@/lib/auth-store";
  * token proves identity; what the identity may do is re-read from the server, so a
  * role change or a revoked membership takes effect on the next load rather than
  * when the token expires.
+ *
+ * `isLoading` stays true until the persisted session has been rehydrated. Callers
+ * use it to decide whether to redirect, and deciding before rehydration would sign
+ * out a user who simply reloaded the page.
  */
 export function useSession() {
   const router = useRouter();
+  const hydrated = useSessionHydrated();
   const accessToken = useSessionStore((state) => state.accessToken);
   const storedMe = useSessionStore((state) => state.me);
   const setMe = useSessionStore((state) => state.setMe);
@@ -43,8 +48,8 @@ export function useSession() {
 
   return {
     me,
-    isLoading: Boolean(accessToken) && query.isLoading && !me,
-    isAuthenticated: Boolean(accessToken) && !query.isError,
+    isLoading: !hydrated || (Boolean(accessToken) && query.isLoading && !me),
+    isAuthenticated: hydrated && Boolean(accessToken) && !query.isError,
     error: query.error,
     signOut,
   };

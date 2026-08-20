@@ -1,6 +1,7 @@
 "use client";
 
 import type { MeRead, TokenPair } from "@influenceros/types";
+import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -63,6 +64,29 @@ export const useSessionStore = create<SessionState>()(
     },
   ),
 );
+
+/**
+ * Whether the persisted session has been read back from `localStorage` yet.
+ *
+ * This is load-bearing, not a nicety. On a hard page load the store starts with
+ * `accessToken: null` and is rehydrated a tick later. A route guard that decides
+ * during that tick sees "no token" and redirects a signed-in user to /login — so
+ * pressing F5, or opening a deep link, would sign the user out even though the
+ * token is sitting in `localStorage`.
+ *
+ * `useSyncExternalStore` rather than an effect that calls `setState`: hydration is
+ * external state, the server snapshot is `false` so the first render matches the
+ * prerender, and React re-reads the snapshot after subscribing — which is what
+ * covers the common case where rehydration already finished before this component
+ * mounted and no event will ever arrive.
+ */
+export function useSessionHydrated(): boolean {
+  return useSyncExternalStore(
+    (onStoreChange) => useSessionStore.persist.onFinishHydration(onStoreChange),
+    () => useSessionStore.persist.hasHydrated(),
+    () => false,
+  );
+}
 
 /** Snapshot for callers outside React (the API client, route guards). */
 export function readSession(): {
