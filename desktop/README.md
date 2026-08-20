@@ -17,7 +17,7 @@ and publishes it — after a human has approved that exact version.
 
 ## Status
 
-**Stage 0 of 8 — repository, architectural rules and ADRs.** No application code exists
+**Stage 0 of 9 — repository, architectural rules and ADRs.** No application code exists
 yet. Nothing in this directory runs.
 
 The single source of truth for what is built and what is not is
@@ -36,6 +36,7 @@ future stages carry an explicit status banner; treat any capability without a ro
 | 6     | LLM framework: PersonaPromptService, fake/OpenAI/Anthropic/compatible adapters | planned  |
 | 7     | Release quality: signed updates, migration backup, diagnostics bundle          | planned  |
 | 8     | Cloud extension: media relay, cloud scheduler, sync, team access               | planned  |
+| 9     | Conversations: comment and DM replies — beyond the spec, **not designed**      | planned  |
 
 ---
 

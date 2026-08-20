@@ -3,9 +3,9 @@
 The record of what exists. If a capability is not marked `done` here, it is not implemented,
 whatever any other document appears to promise.
 
-**Current state: stage 0 of 8 complete. There is no application code. Nothing runs.**
+**Current state: stage 0 of 9 complete. There is no application code. Nothing runs.**
 
-Last updated: 2026-08-19.
+Last updated: 2026-08-20.
 
 ---
 
@@ -22,6 +22,7 @@ Last updated: 2026-08-19.
 | 6     | LLM framework and providers                                                 | planned  |
 | 7     | Release quality: signed updates, migration safety, diagnostics              | planned  |
 | 8     | Cloud extension: media relay, cloud scheduler, sync, team access            | planned  |
+| 9     | Conversations: comment and DM replies — beyond the spec, **not designed**   | planned  |
 
 ## Stage 0 — delivered
 
@@ -41,14 +42,14 @@ Last updated: 2026-08-19.
 Stage 0 is documentation, so only the formatting gate applies. Everything else has no subject
 yet, and reporting a pass for a gate with nothing to check would be false.
 
-| Gate                                           | Result                              |
-| ---------------------------------------------- | ----------------------------------- |
-| `prettier --check` over the new markdown       | pass — 20 files match               |
-| Internal markdown links resolve                | pass — 118 relative links, 0 broken |
-| `ruff` / `mypy` / `pytest`                     | not run — no Python exists          |
-| `eslint` / `tsc` / `vitest` / `next build`     | not run — no TypeScript exists      |
-| `cargo fmt` / `clippy` / `test`                | not run — no Rust exists            |
-| sidecar startup, API smoke, fake connector E2E | not run — nothing to start          |
+| Gate                                           | Result                                           |
+| ---------------------------------------------- | ------------------------------------------------ |
+| `prettier --check` over the new markdown       | pass — 20 files match                            |
+| Internal markdown links resolve                | pass — 123 relative links and 1 anchor, 0 broken |
+| `ruff` / `mypy` / `pytest`                     | not run — no Python exists                       |
+| `eslint` / `tsc` / `vitest` / `next build`     | not run — no TypeScript exists                   |
+| `cargo fmt` / `clippy` / `test`                | not run — no Rust exists                         |
+| sidecar startup, API smoke, fake connector E2E | not run — nothing to start                       |
 
 ---
 
@@ -95,6 +96,11 @@ reader who has just finished the ADRs could reasonably assume otherwise.
   not a fixed rule ([ADR-0005](docs/adr/0005-human-approval-before-automatic-publishing.md)).
 - This project currently lives as a subtree of the donor repository rather than in its own
   repository ([docs/repository-extraction.md](docs/repository-extraction.md)).
+- Stage 9 (comment and DM replies) is recorded in the plan but **not designed**. It needs two
+  ADRs that do not exist: one arguing why a human-approved _policy_ is an acceptable substitute
+  for a per-artefact snapshot approval, and one on conversation logs as personal data —
+  retention, deletion on request, and what may be sent to an LLM provider
+  ([docs/implementation-plan.md](docs/implementation-plan.md)).
 
 ---
 

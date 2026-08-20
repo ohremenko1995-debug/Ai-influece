@@ -1,7 +1,10 @@
 # Implementation plan
 
-Nine stages. Each ends with every quality gate green and its exact results recorded in
+Ten stages. Each ends with every quality gate green and its exact results recorded in
 [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md).
+
+Stages 0–8 are the specification's own order. Stage 9 is beyond it, recorded here because
+it changes decisions taken in stages 2–4 — see [its own note](#what-stage-9-means-for-stages-24).
 
 Two rules govern this document:
 
@@ -127,3 +130,139 @@ upgrade-from-previous-stable test.
 `MediaRelayConnector` implementation. Auth relay if required. `CloudSchedulerConnector`
 implementation. Local/cloud sync policy and conflict resolution. Team access. Commercial
 licensing and billing are a separate project.
+
+---
+
+## Stage 9 — Conversations: comments and direct messages
+
+> **Not designed.** This section states the shape of the problem and the decisions that are
+> already forced by it. It is not an implementation plan, and it is deliberately not detailed
+> to the level of stages 0 and 1 — that happens when the stage begins.
+>
+> The specification lists automated comment and DM replies as an explicit non-goal **of the
+> first version** (§4). Stage 9 does not contradict that: it is post-v1, and it cannot start
+> before stages 5, 6 and 8 exist.
+
+**Goal:** the character answers comments and direct messages in its own voice, at a volume no
+person could handle by hand, without any single reply being something a human would not have
+sanctioned.
+
+### The line this stage holds
+
+Two requirements are easy to conflate, and only one of them is in scope.
+
+| In scope                                                                                                                                                        | Not in scope, ever                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Replies that read as natural language rather than a bot template — real reaction to the specific message, memory of the conversation, the character's own voice | Replies designed to make the other person believe they are talking to a human |
+
+The first is what `VoiceProfile` already exists for: sentence length, emoji rules, favourite
+and forbidden expressions, how the audience is addressed. There is no reason to hold back on
+it, and doing it well is most of the product value here.
+
+The second is out of scope for four independent reasons, any one of which would be sufficient:
+
+- The project's transparency rule. Characters are openly virtual, and no feature may exist to
+  hide that content is synthetic or to impersonate a real person
+  ([ADR-0011](adr/0011-no-media-generation.md), [security.md](security.md)).
+- Regulation. Where the audience is in the EU, the AI Act's transparency obligations require a
+  person to be informed they are interacting with an AI system. Applicable since August 2026;
+  the specifics belong with a lawyer, but the direction is not ambiguous.
+- Platform terms. Every platform in scope requires an automated account to be identifiable and
+  prohibits impersonation. A ban is not a hypothetical consequence.
+- Asymmetry. One screenshot captioned "I thought this was a real person" costs more than
+  concealment could ever earn, and audiences engage with declared brand personas anyway.
+
+In practice: disclosure lives in the profile and bio, not in every reply; the character never
+claims to be human, and answers honestly if asked directly. Everything else is free.
+
+### What actually blocks it — the platform APIs, not the LLM
+
+Programmatic conversation access is far worse than publication access, and it varies more.
+Verify all of this against current documentation when the stage starts; these APIs change more
+often than any others in the product.
+
+| Platform      | Comments                       | Direct messages                        |
+| ------------- | ------------------------------ | -------------------------------------- |
+| Telegram      | yes, Bot API, no vendor review | yes, straightforward                   |
+| Facebook Page | yes, Graph API                 | yes, Messenger Platform                |
+| Instagram     | yes, Professional accounts     | yes, but a messaging window and review |
+| YouTube       | yes, tight quotas              | no such feature                        |
+| Threads       | limited                        | no                                     |
+| X             | yes, paid tiers                | yes, paid tiers                        |
+| VK            | yes                            | yes, via a community                   |
+| TikTok        | effectively no                 | no                                     |
+| Pinterest     | almost none                    | no                                     |
+
+Realistically that is Telegram, the Meta group and YouTube — and Telegram first again,
+because a bot token needs no review.
+
+### The hard part is the approval gate, not the generation
+
+Approving every individual reply by hand does not survive contact with volume. Not approving
+them means a machine speaks for the brand. The way out is to move the human decision one level
+up:
+
+**A person approves a policy, not a reply.** `ReplyPolicy` is a versioned append-only artefact,
+exactly like the Character Bible: permitted topics, tone, prohibitions, what to do with an
+unknown question, a daily message ceiling. The machine may only act strictly inside a policy
+that currently holds a human approval. This is the same structure as
+[ADR-0005](adr/0005-human-approval-before-automatic-publishing.md) — the `agent` role still
+cannot approve anything, it can only execute a decision a person already made — and it will
+need its own ADR, because a policy authorises a _class_ of future messages rather than one
+exact artefact, which is a genuinely weaker guarantee than a snapshot hash and has to be
+argued for on its own terms.
+
+Three tiers, with the boundary drawn by classification rather than by keyword lists alone:
+
+| Tier                            | When                                                        |
+| ------------------------------- | ----------------------------------------------------------- |
+| auto-reply                      | classified low risk, squarely inside the active policy      |
+| draft queued for a human        | anything ambiguous — the LLM prepares it, a person sends it |
+| hard escalation, no draft shown | the categories below                                        |
+
+Hard escalation, unconditionally: money and payments, health, legal questions, any signal that
+the other party may be a minor, personal data, complaints, hostility, and anything reading as a
+crisis. These do not get a suggested reply, because a suggested reply is something a tired
+person clicks past.
+
+### Invariants reused unchanged
+
+- An idempotency key per inbound message, so a reply can never be sent twice — the same
+  mechanism as publishing.
+- The audit row and the state change in one transaction.
+- A connector boundary: `ConversationConnector` alongside `SocialConnector`
+  ([ADR-0006](adr/0006-social-connector-boundary.md)), so no platform's inbox model reaches the
+  domain.
+- A kill switch that stops every automatic reply in one action, for every character and
+  account at once.
+- Rate ceilings per account per day, enforced in the domain rather than discovered from a
+  platform's 429.
+
+### One genuinely new concern
+
+**A conversation log is personal data.** Not "another table": it needs a retention period, a
+deletion path that works on request, encryption at rest, a decision about what may be sent to
+an LLM provider and what may not, and a defensible answer to why any of it is stored at all.
+That is its own ADR, and it is the part of this stage most likely to be underestimated.
+
+### Prerequisites
+
+Stage 5 (a working connector), stage 6 (`PersonaPromptService`), and stage 8 — inbound messages
+arrive while the computer is off, so a purely local loop hits exactly the wall that scheduled
+publishing does.
+
+### What stage 9 means for stages 2–4
+
+This is the only reason to record the stage now rather than later. Three things should be true
+of the earlier stages' data model, and each is cheap now and expensive to retrofit:
+
+1. **A character has conversations, not only publications.** `VoiceProfile` and the approved-example
+   set are addressed by the publication flow today; nothing should assume that is the only caller.
+2. **Approved examples are a general asset.** A saved good reply is as useful to prompt context as
+   a saved good post, so the examples table should not be keyed to publications.
+3. **`ReplyPolicy` will be a versioned approvable artefact.** Whatever generalisation of
+   "versioned, append-only, approvable" comes out of stages 2 and 4 should be able to carry a
+   third kind of subject without a migration that rewrites it.
+
+Nothing else about stage 9 should influence earlier work. If it starts driving decisions beyond
+these three points, that is scope creep, not foresight.
