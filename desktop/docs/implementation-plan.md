@@ -1,10 +1,16 @@
 # Implementation plan
 
-Ten stages. Each ends with every quality gate green and its exact results recorded in
+Eleven stages. Each ends with every quality gate green and its exact results recorded in
 [IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md).
 
-Stages 0–8 are the specification's own order. Stage 9 is beyond it, recorded here because
-it changes decisions taken in stages 2–4 — see [its own note](#what-stage-9-means-for-stages-24).
+Stages 0–8 are the specification's own order. Stages 9 and 10 are beyond it and are recorded
+here because both change decisions taken in stages 2–4 — see
+[what they mean for the earlier stages](#what-stages-9-and-10-mean-for-stages-24).
+
+Insights comes before conversations deliberately, even though conversations was written down
+first. Insights is cheaper, carries no new authority — it only reads — and it feeds the loop
+that makes the LLM better. Conversations needs a weaker approval model than anything else in
+the product and stores personal data, so it earns its place last.
 
 Two rules govern this document:
 
@@ -106,6 +112,21 @@ invalidation. Calendar. The persistent job table with lease and idempotency key.
 `FakeSocialConnector`. A complete local end-to-end publication flow with no external
 platform involved — this is the flow that becomes a release gate.
 
+**Post library.** A browsable, searchable view over everything ever drafted, scheduled or
+published, per character: filter by platform, account, status, date, content pillar; open the
+exact approved snapshot; duplicate a past post as a new publication with its settings
+carried over. The data is created by this stage anyway — the library is a read model plus one
+action, not a new subsystem, which is why it belongs here and not in a stage of its own.
+
+Two things it must get right:
+
+- **A duplicate starts unapproved.** Copying a published post produces a draft, never an
+  inherited approval, because the snapshot hash is about one artefact
+  ([ADR-0005](adr/0005-human-approval-before-automatic-publishing.md)).
+- **The library is the same table as the history.** A separate "reusable posts" store would
+  immediately drift from what was actually published, and then two screens would disagree
+  about what the character said.
+
 ## Stage 5 — First real social connector
 
 Telegram first, because a bot token needs no vendor review, so the whole path can be proven
@@ -133,14 +154,109 @@ licensing and billing are a separate project.
 
 ---
 
-## Stage 9 — Conversations: comments and direct messages
+## Stage 9 — Insights: reach, likes, reactions
+
+> **Not designed.** As with stage 10, this states the shape of the problem and the decisions
+> already forced by it, not an implementation plan.
+>
+> It cannot start before stage 5: there is nothing to read metrics from until a real connector
+> publishes real posts.
+
+**Goal:** for every post the application published, show what happened to it — reach, views,
+likes, reactions, comments, saves — and make that answer a question the user actually has:
+which characters, tones, pillars and posting times work.
+
+### The numbers are not comparable, and pretending they are is the main risk
+
+Instagram reach, YouTube views, TikTok views and Telegram channel views are four different
+measurements with four different definitions. Adding them produces a number that means
+nothing, and a chart that puts them on one axis is a chart that lies.
+
+So the model is:
+
+- **Store platform-native metrics under their platform-native names**, exactly as the platform
+  returned them, with the platform's own metric definition version.
+- **Derive a small normalised set** — impressions-like, engagement-like, saves-like — and treat
+  it as explicitly lossy. Every normalised figure must be able to name what it was derived
+  from.
+- **Never show a cross-platform total without saying what it sums.** Per-platform panels by
+  default; a combined figure only where the underlying metrics genuinely mean the same thing.
+
+Which metric maps to what is platform-specific, so it belongs in the connector manifest and
+its schema like every other platform difference
+([ADR-0006](adr/0006-social-connector-boundary.md)) — not in a lookup table inside the domain.
+
+### Metrics are a time series, not a value
+
+A post's likes on day 1 and day 30 are different facts, and "is this still growing" is the
+more useful one. So `PostMetricSnapshot` is append-only, one row per fetch, carrying
+`fetched_at`, the raw platform payload's safe subset, and the normalised view. The current
+number is the latest snapshot, not a column that gets overwritten.
+
+This also makes gaps visible, which matters here more than in a server product: a local
+scheduler cannot poll while the computer is off, so a week away is a real hole in the series.
+**Gaps are shown as gaps.** Nothing is interpolated, and no average silently spans one.
+
+### What actually blocks it — again the platform APIs
+
+Verify at implementation time; these change more than any other endpoints.
+
+| Platform      | Post-level metrics                                                 |
+| ------------- | ------------------------------------------------------------------ |
+| YouTube       | good — the Analytics API is a genuine reporting surface            |
+| Facebook Page | good — Page and post insights                                      |
+| Instagram     | good for Professional accounts, and the metric names churn         |
+| Threads       | basic insights                                                     |
+| VK            | good                                                               |
+| X             | own-post metrics, paid tiers                                       |
+| TikTok        | limited, and only for authorised business accounts                 |
+| Pinterest     | limited                                                            |
+| Telegram      | **poor** — the Bot API exposes almost nothing about a channel post |
+
+Telegram being the weakest is awkward, because it is the first connector. That is worth
+stating in the UI rather than showing an empty chart: a platform that cannot report is
+different from a post that got no reach.
+
+### Reads only, and that is the point
+
+This stage adds no authority. A connector method that fetches insights cannot publish, cannot
+change a setting, and cannot approve anything, so it needs no approval model of its own — the
+`insights` capability is simply another manifest flag, and `agent` may read metrics like every
+other role.
+
+Two constraints do apply:
+
+- **No audience-level data.** Aggregates only. Who liked a post is personal data with no use
+  here, so it is not fetched and not stored.
+- **Rate limits are the domain's problem**, not something to discover from a 429. Polling
+  cadence backs off as a post ages: often on day one, rarely after a month.
+
+### Where it earns its keep
+
+A dashboard of numbers is not the deliverable. The deliverable is the loop back into the
+character: which approved examples actually performed, so that the examples fed to
+`PersonaPromptService` ([ADR-0007](adr/0007-llm-provider-boundary.md)) are chosen on evidence
+rather than on the user's memory of what felt good. That is also the honest limit of it —
+correlation over a handful of posts is not proof, and the UI should not imply otherwise.
+
+### Needs an ADR it does not have
+
+Why platform-native metrics are stored verbatim and normalisation is treated as lossy, rather
+than defining one canonical "engagement" number up front. The canonical-number design is more
+convenient and is the one most analytics products ship; the argument against it — that it
+silently equates incomparable measurements — has to be written down before the schema is
+fixed, because the schema is what makes it hard to undo.
+
+---
+
+## Stage 10 — Conversations: comments and direct messages
 
 > **Not designed.** This section states the shape of the problem and the decisions that are
 > already forced by it. It is not an implementation plan, and it is deliberately not detailed
 > to the level of stages 0 and 1 — that happens when the stage begins.
 >
 > The specification lists automated comment and DM replies as an explicit non-goal **of the
-> first version** (§4). Stage 9 does not contradict that: it is post-v1, and it cannot start
+> first version** (§4). Stage 10 does not contradict that: it is post-v1, and it cannot start
 > before stages 5, 6 and 8 exist.
 
 **Goal:** the character answers comments and direct messages in its own voice, at a volume no
@@ -251,18 +367,24 @@ Stage 5 (a working connector), stage 6 (`PersonaPromptService`), and stage 8 —
 arrive while the computer is off, so a purely local loop hits exactly the wall that scheduled
 publishing does.
 
-### What stage 9 means for stages 2–4
+## What stages 9 and 10 mean for stages 2–4
 
-This is the only reason to record the stage now rather than later. Three things should be true
-of the earlier stages' data model, and each is cheap now and expensive to retrofit:
+This is the only reason to record either stage now rather than later. Five things should be
+true of the earlier stages' data model, and each is cheap now and expensive to retrofit:
 
-1. **A character has conversations, not only publications.** `VoiceProfile` and the approved-example
-   set are addressed by the publication flow today; nothing should assume that is the only caller.
-2. **Approved examples are a general asset.** A saved good reply is as useful to prompt context as
-   a saved good post, so the examples table should not be keyed to publications.
-3. **`ReplyPolicy` will be a versioned approvable artefact.** Whatever generalisation of
+1. **A `PublicationTarget` is the anchor for later facts about a post.** Metrics, and eventually
+   comments, attach to the target — one post on one account. A schema that treats a target as a
+   transient job record rather than a durable entity makes stage 9 a migration.
+2. **Approved examples are a general asset.** A saved good reply is as useful to prompt context
+   as a saved good post, and stage 9 wants to rank them by performance — so the examples table
+   should be keyed to neither publications nor conversations exclusively.
+3. **A character has conversations, not only publications.** `VoiceProfile` and the example set
+   are addressed by the publication flow today; nothing should assume that is the only caller.
+4. **`ReplyPolicy` will be a versioned approvable artefact.** Whatever generalisation of
    "versioned, append-only, approvable" comes out of stages 2 and 4 should be able to carry a
    third kind of subject without a migration that rewrites it.
+5. **Connector capabilities will grow.** `insights` and later `conversations` are new manifest
+   flags. Stage 4's capability model should be an open set, not an enum the domain switches on.
 
-Nothing else about stage 9 should influence earlier work. If it starts driving decisions beyond
-these three points, that is scope creep, not foresight.
+Nothing else about stages 9 and 10 should influence earlier work. If either starts driving
+decisions beyond these five points, that is scope creep, not foresight.
