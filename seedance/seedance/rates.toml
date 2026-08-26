@@ -1,0 +1,161 @@
+# ---------------------------------------------------------------------------
+# Seedance 2.5 price table.
+#
+# Every number below is a published list price together with the date it was
+# read and the page it came from. Prices for this model moved twice between
+# 2.0 and 2.5 and several providers run promos with an end date, so this file
+# is data, not truth: re-read the provider console before a large run and bump
+# `checked_at`.
+#
+# A resolution that is missing from a provider is missing on purpose. The
+# estimator refuses to price what it has not been told rather than guessing —
+# an invented rate is worse than an error, because you only find out when the
+# invoice arrives.
+# ---------------------------------------------------------------------------
+
+# Frame geometry ByteDance bills at. Derived from its own published examples:
+# 5 s of 16:9 720p at $10.70/M tokens comes to $1.156 only if the frame is
+# 1280x720 and the divisor is 1024 (see tests/test_pricing.py).
+[resolutions.480p]
+width = 854
+height = 480
+
+[resolutions.720p]
+width = 1280
+height = 720
+
+[resolutions.1080p]
+width = 1920
+height = 1080
+
+# ---------------------------------------------------------------------------
+# First-party channels
+# ---------------------------------------------------------------------------
+[providers.modelark]
+label = "BytePlus ModelArk (direct, international)"
+billing = "token"
+model_id = "dreamina-seedance-2-5-260628"
+checked_at = "2026-08-26"
+source = "https://docs.byteplus.com/en/docs/ModelArk/2607688"
+notes = "Billed on output only: prompt, first frame and reference images are free, and audio carries no charge."
+usd_per_million_tokens = 10.70
+usd_per_million_tokens_with_video = 6.40
+# 1080p tokens bill at a slightly higher per-token rate than 480p/720p: the
+# published $2.843 per 5 s does not fall out of the flat $10.70/M.
+[providers.modelark.usd_per_million_tokens_by_resolution]
+"1080p" = 11.70
+
+[providers.volcano_ark]
+label = "Volcano Engine Ark (China)"
+billing = "token"
+model_id = "doubao-seedance-2.5"
+currency = "CNY"
+checked_at = "2026-08-26"
+source = "https://www.cometapi.com/seedance-2-5-api-pricing/"
+notes = "Needs Chinese real-name verification and a Chinese phone number. Priced in CNY: 70 per M tokens, 42 with video input. No adapter — listed for comparison only."
+usd_per_million_tokens = 0.0
+adapter = false
+
+# ---------------------------------------------------------------------------
+# Resellers. Per output second, no video input, read 2026-08-22.
+# ---------------------------------------------------------------------------
+[providers.wavespeed_turbo]
+label = "WaveSpeed (Seedance 2.5 Turbo)"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://wavespeed.ai/seedance-2-5-api"
+notes = "Cheapest published 720p rate. Turbo is a separate model ID, not a flag on the standard endpoint."
+[providers.wavespeed_turbo.usd_per_second]
+"720p" = 0.20
+
+[providers.replicate]
+label = "Replicate"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://replicate.com/bytedance/seedance-2.5"
+notes = "Matches the direct ModelArk rate at 480p and 720p. Replicate publishes further tiers (1080p, video input) — add them here after reading the model page."
+[providers.replicate.usd_per_second]
+"480p" = 0.1028
+"720p" = 0.2312
+
+[providers.wavespeed]
+label = "WaveSpeed (standard)"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://wavespeed.ai/seedance-2-5-api"
+[providers.wavespeed.usd_per_second]
+"720p" = 0.36
+
+[providers.atlas]
+label = "Atlas Cloud"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://www.atlascloud.ai/models/seedance-2.5"
+notes = "Minimum top-up $25. Takes cards, Alipay, WeChat Pay and crypto. Their headline 'flat $0.134/s' is the 480p baseline, not a flat rate. No adapter yet."
+adapter = false
+[providers.atlas.usd_per_second]
+"480p" = 0.14
+"720p" = 0.30
+"1080p" = 0.59
+
+[providers.reapi]
+label = "reAPI"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://cellcog.ai/blog/seedance-2-5-pricing/"
+adapter = false
+[providers.reapi.usd_per_second]
+"720p" = 0.2668
+
+[providers.evolink]
+label = "EvoLink"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://evolink.ai/seedance-2-5"
+notes = "Ran a 28% discount on 1080p through 2026-09-17; re-check whether it still stands."
+adapter = false
+[providers.evolink.usd_per_second]
+"720p" = 0.293
+
+[providers.kie]
+label = "Kie.ai"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://kie.ai/blog/seedance-2-5-pricing"
+notes = "Bills in credits; the per-second figure is the converted rate."
+adapter = false
+[providers.kie.usd_per_second]
+"720p" = 0.315
+
+[providers.byteplus_las]
+label = "BytePlus LAS"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://cellcog.ai/blog/seedance-2-5-pricing/"
+adapter = false
+[providers.byteplus_las.usd_per_second]
+"720p" = 0.4621
+
+[providers.fal]
+label = "fal"
+billing = "per_second"
+checked_at = "2026-08-22"
+source = "https://fal.ai/models/bytedance/seedance-2.5/text-to-video"
+notes = "Highest published rate of the major providers. Requests carrying a reference video are multiplied by 0.6. Takes USDC."
+with_video_multiplier = 0.6
+adapter = false
+[providers.fal.usd_per_second]
+"480p" = 0.2205
+"720p" = 0.4730
+
+# ---------------------------------------------------------------------------
+# Offline provider used by the test suite and by `--dry-run`. Priced like the
+# direct channel so estimates in tests mean something.
+# ---------------------------------------------------------------------------
+[providers.fake]
+label = "Fake (offline)"
+billing = "token"
+checked_at = "2026-08-26"
+source = "in-repo"
+notes = "Generates nothing and charges nothing real. Used by tests and by `seedance draft --provider fake`."
+usd_per_million_tokens = 10.70
