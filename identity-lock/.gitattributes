@@ -1,0 +1,5 @@
+# The dashboard bundle is committed so `pip install identity-lock[api]` gives a
+# working `identitylock serve` without a Node toolchain. It is build output:
+# never edit it by hand, and do not let it clutter reviews.
+src/identitylock/api/static/** linguist-generated=true -diff
+web/pnpm-lock.yaml linguist-generated=true -diff

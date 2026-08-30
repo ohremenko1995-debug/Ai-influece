@@ -1,0 +1,20 @@
+# Run artefacts: images, run.json, reports. Regenerate with `make demo`.
+var/
+
+# Reference sets are rendered deterministically by `identitylock bootstrap`,
+# so they are never committed. A curated reference set belongs in its own
+# directory, pointed at from the suite file.
+suites/references/
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+web/node_modules/

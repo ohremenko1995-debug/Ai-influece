@@ -1,0 +1,152 @@
+# Identity Lock — bundled demonstration suite.
+#
+# Everything here is synthetic. The four characters are procedural renders from
+# `identitylock.providers.synthetic`, not photographs, and the reference sets are
+# regenerated deterministically by `identitylock bootstrap`. Nothing in this
+# repository depicts a real person.
+#
+# The two recipes differ only in how tightly the pipeline holds the character:
+# `baseline` lets identity wander and drift as the batch goes on, `locked` does
+# not. That is the A/B the demo measures.
+
+id: demo
+description: >-
+  Four openly virtual characters, four content prompts, six seeds. Measures
+  whether a generation recipe keeps one character on-model across a batch.
+
+character: ava
+cohort: [ava, mira, noor, kai]
+
+characters:
+  ava:
+    name: Ava Solari
+    disclosure: Openly virtual character. Not a real person. All imagery is AI-generated.
+    references: references/ava
+    notes: Primary subject of this suite.
+  mira:
+    name: Mira Vale
+    disclosure: Openly virtual character. Not a real person. All imagery is AI-generated.
+    references: references/mira
+    notes: Impostor cohort — present so the identity margin is falsifiable.
+  noor:
+    name: Noor Adley
+    disclosure: Openly virtual character. Not a real person. All imagery is AI-generated.
+    references: references/noor
+    notes: Impostor cohort.
+  kai:
+    name: Kai Renn
+    disclosure: Openly virtual character. Not a real person. All imagery is AI-generated.
+    references: references/kai
+    notes: Impostor cohort.
+
+prompts:
+  - id: studio
+    text: studio portrait, soft key light, plain backdrop
+    tags: [portrait, controlled]
+  - id: street
+    text: candid street portrait, late afternoon sun, city background
+    tags: [candid, outdoor]
+  - id: interior
+    text: seated in a warm interior, window light from the left
+    tags: [lifestyle, indoor]
+  - id: night
+    text: night portrait, cool ambient light, shallow depth of field
+    tags: [lowlight, hard]
+
+seeds: [101, 202, 303, 404, 505, 606]
+
+reference_recipe: locked
+reference_count: 8
+
+recipes:
+  baseline:
+    name: Baseline — loose identity
+    model: synthetic-v1
+    steps: 8
+    cfg: 1.0
+    width: 512
+    height: 512
+    extra:
+      identity_jitter: 0.16
+      drift_per_frame: 0.004
+      blur: 0.6
+      grain: 0.02
+
+  locked:
+    name: Locked — identity LoRA at 0.85
+    model: synthetic-v1
+    steps: 8
+    cfg: 1.0
+    width: 512
+    height: 512
+    loras:
+      - name: ava-identity-v3
+        weight: 0.85
+    extra:
+      identity_jitter: 0.05
+      drift_per_frame: 0.0
+      blur: 0.15
+      grain: 0.015
+
+  drifting:
+    name: Drifting — identity slides across the batch
+    model: synthetic-v1
+    steps: 8
+    cfg: 1.0
+    width: 512
+    height: 512
+    extra:
+      identity_jitter: 0.02
+      drift_per_frame: 0.014
+      blur: 0.15
+      grain: 0.015
+
+  overcooked:
+    name: Overcooked — LoRA at 1.35
+    model: synthetic-v1
+    steps: 8
+    cfg: 1.0
+    width: 512
+    height: 512
+    loras:
+      - name: ava-identity-v3
+        weight: 1.35
+    extra:
+      identity_jitter: 0.02
+      drift_per_frame: 0.0
+      blur: 1.6
+      exposure_bias: 0.35
+      grain: 0.008
+
+select_k: 6
+select_lambda: 0.7
+
+# identity_min, identity_p05_min, margin_min and consistency_rate_min below were
+# produced by `identitylock calibrate --suite suites/demo.yaml --write`, from a
+# labelled validation set on seeds 7000+ that no evaluated run uses. On that set
+# the classical descriptor reaches AUC 0.9939 and EER 4.17%; a 2% false-accept
+# target lands on threshold 0.1438 (achieved FAR 1.39%, FRR 4.17%), which is
+# where consistency_rate_min 0.9083 comes from. Re-run calibrate after changing
+# the embedder, the characters or the reference sets — do not hand-tune these.
+#
+# technical_min, drift_abs_max, drift_alpha and diversity_min are product
+# decisions, not fitted values, and are meant to be argued with:
+#   technical_min   a frame softer or more blown out than this is not publishable
+#   drift_abs_max   the character may lose at most 0.05 similarity per 10 frames
+#   drift_alpha     ...and only if that slope is steeper than chance at p < 0.05
+#   diversity_min   accepted takes must not be near-duplicates of each other
+policy:
+  identity_min: 0.1438
+  identity_p05_min: 0.0938
+  margin_min: 0.0344
+  consistency_rate_min: 0.9083
+  technical_min: 0.40
+  drift_abs_max: 0.05
+  drift_alpha: 0.05
+  diversity_min: 0.08
+
+comparison_policy:
+  min_win_rate: 0.55
+  min_effect_size: 0.15
+  ci_level: 0.95
+  bootstrap_samples: 10000

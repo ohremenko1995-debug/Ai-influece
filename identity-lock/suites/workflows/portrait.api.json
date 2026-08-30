@@ -1,0 +1,66 @@
+{
+  "_comment": [
+    "Stock ComfyUI API-format workflow, wired for Identity Lock.",
+    "This uses only built-in nodes so it is valid on any ComfyUI install. It is a",
+    "starting point, not a recommendation: export your own graph with",
+    "Save (API Format) and replace the widget values you want the harness to drive",
+    "with the same {{placeholders}}. Keep exactly one SaveImage node."
+  ],
+  "4": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": { "ckpt_name": "{{model}}" },
+    "_meta": { "title": "Checkpoint" }
+  },
+  "10": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "lora_name": "identity.safetensors",
+      "strength_model": 0.85,
+      "strength_clip": 0.85,
+      "model": ["4", 0],
+      "clip": ["4", 1]
+    },
+    "_meta": { "title": "Identity LoRA — set lora_name and strengths per recipe" }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "{{prompt}}", "clip": ["10", 1] },
+    "_meta": { "title": "Positive" }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "{{negative}}", "clip": ["10", 1] },
+    "_meta": { "title": "Negative" }
+  },
+  "5": {
+    "class_type": "EmptyLatentImage",
+    "inputs": { "width": "{{width}}", "height": "{{height}}", "batch_size": 1 },
+    "_meta": { "title": "Latent" }
+  },
+  "3": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": "{{seed}}",
+      "steps": "{{steps}}",
+      "cfg": "{{cfg}}",
+      "sampler_name": "{{sampler}}",
+      "scheduler": "{{scheduler}}",
+      "denoise": 1.0,
+      "model": ["10", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
+    },
+    "_meta": { "title": "Sampler" }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["3", 0], "vae": ["4", 2] },
+    "_meta": { "title": "Decode" }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": { "filename_prefix": "identitylock/{{character}}", "images": ["8", 0] },
+    "_meta": { "title": "Save — the harness scores this node's output" }
+  }
+}
