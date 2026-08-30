@@ -275,7 +275,7 @@ identitylock run --suite my-suite.yaml --recipe v3 \
 
 # Straight from a ComfyUI box
 identitylock run --suite my-suite.yaml --recipe krea2-lora-v3 \
-  --provider comfyui --comfyui http://100.115.92.11:8188 \
+  --provider comfyui --comfyui http://comfyui.local:8188 \
   --workflow suites/workflows/portrait.api.json
 ```
 

@@ -41,7 +41,7 @@ identitylock run \
   --suite suites/mine.yaml \
   --recipe krea2-lora-v3 \
   --provider comfyui \
-  --comfyui http://100.115.92.11:8188 \
+  --comfyui http://comfyui.local:8188 \
   --workflow suites/workflows/krea2-portrait.api.json \
   --gate
 ```
