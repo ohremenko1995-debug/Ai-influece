@@ -3,3 +3,7 @@
 # never edit it by hand, and do not let it clutter reviews.
 src/identitylock/api/static/** linguist-generated=true -diff
 web/pnpm-lock.yaml linguist-generated=true -diff
+
+# README figures are emitted by scripts/render_readme_charts.py from real run
+# data (`make charts`). Regenerate them; never hand-edit them.
+docs/assets/*.svg linguist-generated=true -diff

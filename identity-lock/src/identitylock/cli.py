@@ -279,6 +279,13 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
             "characters": calibration.table(),
             "policy": calibration.suggested.model_dump(),
             "warnings": list(calibration.warnings),
+            # The raw score distributions, not just the summary. An AUC of 0.99
+            # with a long impostor tail and one with clean separation are very
+            # different situations, and only the distributions show which it is.
+            "scores": {
+                "genuine": [round(value, 6) for value in curve.genuine],
+                "impostor": [round(value, 6) for value in curve.impostor],
+            },
         }
         print(json.dumps(payload, indent=2))
         return EXIT_OK
@@ -466,16 +473,23 @@ def cmd_demo(args: argparse.Namespace) -> int:
         for recipe_id, result in results.items():
             if recipe_id == "locked":
                 continue
-            metric = "technical" if recipe_id == "overcooked" else "identity"
-            comparison = compare(
-                result, results["locked"], metric=metric, policy=suite_file.comparison_policy
-            )
-            save_comparison(comparison, comparisons_root)
-            (comparisons_root / f"{comparison.comparison_id}.html").write_text(
-                render_comparison_report(comparison, baseline=result, challenger=results["locked"]),
-                encoding="utf-8",
-            )
-            _print_comparison(console, comparison)
+            # `overcooked` is compared on both metrics on purpose: the same pair of
+            # runs is a decisive win on `technical` and inconclusive on `identity`,
+            # which is the clearest demonstration that the metric has to match the
+            # change being tested.
+            metrics = ("identity", "technical") if recipe_id == "overcooked" else ("identity",)
+            for metric in metrics:
+                comparison = compare(
+                    result, results["locked"], metric=metric, policy=suite_file.comparison_policy
+                )
+                save_comparison(comparison, comparisons_root)
+                (comparisons_root / f"{comparison.comparison_id}.html").write_text(
+                    render_comparison_report(
+                        comparison, baseline=result, challenger=results["locked"]
+                    ),
+                    encoding="utf-8",
+                )
+                _print_comparison(console, comparison)
 
     console.title("\n4/4  Done")
     console.write(f"  runs         {runs_root}")

@@ -150,6 +150,14 @@ class TestCalibrate:
         assert 0.0 <= payload["auc"] <= 1.0
         assert "identity_min" in payload["policy"]
         assert isinstance(payload["characters"], list)
+        # The distributions travel with the summary, so a chart or a second pass
+        # never has to re-render the validation set to see them.
+        genuine = payload["scores"]["genuine"]
+        impostor = payload["scores"]["impostor"]
+        assert len(genuine) > 0
+        # One impostor score per frame per *other* character: the tiny cohort has
+        # two, so the two lists are the same length here and diverge for bigger ones.
+        assert len(impostor) == len(genuine) * (len(payload["characters"]) - 1)
 
     def test_write_updates_the_suite_without_losing_comments(self, workspace: Path) -> None:
         _run("bootstrap", "--suite", "tiny.yaml")

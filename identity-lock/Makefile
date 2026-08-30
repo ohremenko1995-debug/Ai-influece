@@ -11,7 +11,7 @@ OUT     ?= var
 PORT    ?= 8420
 
 .DEFAULT_GOAL := help
-.PHONY: help install web demo bootstrap calibrate run compare serve test cov lint format typecheck check clean distclean
+.PHONY: help install web demo charts bootstrap calibrate run compare serve test cov lint format typecheck check clean distclean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -30,6 +30,12 @@ web: ## Build the dashboard bundle into the Python package
 
 demo: install ## Render references, run every recipe, compare, write reports
 	$(BIN)/identitylock demo --suite $(SUITE) --out $(OUT)
+
+charts: demo ## Regenerate the README figures from the current run data
+	$(BIN)/identitylock calibrate --suite $(SUITE) --out $(OUT) --json > $(OUT)/calibration.json
+	$(BIN)/python scripts/render_readme_charts.py \
+		--runs $(OUT)/runs --comparisons $(OUT)/comparisons \
+		--calibration $(OUT)/calibration.json --out docs/assets
 
 bootstrap: ## Render the reference sets for the suite
 	$(BIN)/identitylock bootstrap --suite $(SUITE) --out $(OUT)
