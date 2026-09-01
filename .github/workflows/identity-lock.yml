@@ -1,0 +1,93 @@
+name: identity-lock
+
+# The subproject is self-contained, so CI is scoped to it: nothing else in the
+# repository is rebuilt when only these files change.
+on:
+  push:
+    paths:
+      - "identity-lock/**"
+      - ".github/workflows/identity-lock.yml"
+  pull_request:
+    paths:
+      - "identity-lock/**"
+      - ".github/workflows/identity-lock.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: identity-lock
+
+jobs:
+  python:
+    name: gates (python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      - name: Lint
+        run: ruff check .
+      - name: Format
+        run: ruff format --check .
+      - name: Types
+        run: mypy
+      - name: Tests
+        run: pytest --cov=identitylock --cov-report=term-missing
+
+  demo:
+    name: demo runs end to end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e '.[dev]'
+      # The demo is the README's first claim. If it stops working, CI says so
+      # before a reader finds out.
+      - name: Run the demo
+        run: identitylock demo --out var
+      - name: The locked recipe must still pass its gates
+        run: identitylock run --recipe locked --run-id ci.gate --gate
+      - name: A loose recipe must still be caught
+        run: |
+          if identitylock run --recipe baseline --run-id ci.baseline --gate; then
+            echo "the baseline recipe passed its gates — the harness has stopped detecting drift"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: identity-lock-reports
+          path: identity-lock/var/**/*.html
+          retention-days: 14
+
+  dashboard:
+    name: dashboard builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        working-directory: identity-lock/web
+      - name: Type-check and build
+        run: pnpm build
+        working-directory: identity-lock/web
+      - name: The committed bundle must match the sources
+        run: git diff --exit-code -- src/identitylock/api/static
