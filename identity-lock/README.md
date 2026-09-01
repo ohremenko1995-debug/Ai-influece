@@ -6,7 +6,7 @@
 
 <p align="center">
   <img alt="Python 3.11 · 3.12 · 3.13" src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&logoColor=white">
-  <img alt="256 tests" src="https://img.shields.io/badge/tests-256%20passed-0ca30c">
+  <img alt="263 tests" src="https://img.shields.io/badge/tests-263%20passed-0ca30c">
   <img alt="94% coverage" src="https://img.shields.io/badge/coverage-94%25-0ca30c">
   <img alt="mypy strict" src="https://img.shields.io/badge/mypy-strict-2a78d6">
   <img alt="ruff" src="https://img.shields.io/badge/lint-ruff-2a78d6">
@@ -291,7 +291,7 @@ descriptor with `--embedder clip` or `--embedder arcface` once the extra is inst
 | `ruff check` | clean |
 | `ruff format --check` | 64 files formatted |
 | `mypy --strict` | no issues in 51 source files |
-| `pytest` | **256 passed** in ~30 s |
+| `pytest` | **263 passed**, 1 skipped, in ~30 s |
 | coverage | **94%** overall |
 | `tsc --noEmit` | clean (dashboard, `strict` + `noUncheckedIndexedAccess`) |
 | `vite build` | 209 kB bundle, no runtime dependency beyond React |
@@ -313,10 +313,16 @@ Stated plainly, because a reader would otherwise assume otherwise.
   differ; it will not tell two similar faces apart. On the bundled cohort it reaches
   AUC 0.994 and still misplaces 2 of 48 validation frames. Use `--embedder arcface`
   for production identity numbers.
-- **The learned backends are not exercised in CI.** No GPU and no model weights in
-  the test container, and a green test against a mock would only prove the mock
-  works. They are typed, small and behind the same protocol — but unrun. Coverage
-  there is 40%.
+- **The learned backends' weights cannot be fetched here, so inference is unrun.**
+  `torch` and `open_clip` install from PyPI and import cleanly, but this
+  environment's network policy denies `huggingface.co` and `download.pytorch.org`,
+  so `--embedder clip` gets as far as building the model and then fails on the
+  download. What *is* tested is the wiring around the model, which is where a
+  silent bug would live: that identity is read from the centre crop and content
+  from the whole frame, that both vectors come out normalised, that the largest
+  detected face wins and a zero-area or inverted box never does, and that a frame
+  with no detected face falls back instead of scoring zero. Coverage there is 54%;
+  what remains uncovered is the model call itself.
 - **The ComfyUI adapter has never met a live ComfyUI here.** Its placeholder
   substitution and output selection are tested; its HTTP paths are not (49% covered).
 - **The demo characters are procedurally rendered, not generated.** The provider is
@@ -363,7 +369,7 @@ identity-lock/
   web/             Vite + React dashboard (source for api/static)
   scripts/         the README chart renderer
   suites/          declarative evaluation suites + a ComfyUI workflow template
-  tests/           256 tests
+  tests/           263 tests
   docs/            metrics, protocol, architecture, ADRs, generated figures
 ```
 

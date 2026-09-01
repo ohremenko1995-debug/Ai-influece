@@ -14,16 +14,51 @@ Install what a backend needs before selecting it::
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from identitylock.embeddings.base import Descriptor, l2_normalise
-from identitylock.embeddings.classical import ClassicalEmbedder, _centre_crop
+from identitylock.embeddings.base import Descriptor, Vector, l2_normalise
+from identitylock.embeddings.classical import ClassicalEmbedder, centre_crop
 from identitylock.imaging.loader import Image
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     pass
+
+
+Encoder = Callable[[Image], Vector]
+
+
+def describe_with(encode: Encoder, image: Image, *, identity_crop: float) -> Descriptor:
+    """Route one frame through an image encoder into the two-vector contract.
+
+    Identity is read from a centre crop, content from the whole frame. This lives
+    outside the classes because the *routing* — not the model — is where a bug
+    would silently swap the two vectors, and routing can be tested without any
+    weights at all.
+    """
+    return Descriptor(
+        identity=l2_normalise(encode(centre_crop(image, identity_crop))),
+        content=l2_normalise(encode(image)),
+    )
+
+
+def select_largest_face(faces: Sequence[Any]) -> Any | None:
+    """The biggest detected face by bounding-box area, or ``None`` if there is none.
+
+    Separated out for the same reason: picking the wrong face, or picking one out
+    of an empty list, is a real failure mode and needs a test that does not need a
+    detector.
+    """
+    if not faces:
+        return None
+
+    def area(face: Any) -> float:
+        box = np.asarray(face.bbox, dtype=np.float64)
+        return float(max(box[2] - box[0], 0.0) * max(box[3] - box[1], 0.0))
+
+    return max(faces, key=area)
 
 
 class MissingBackendError(RuntimeError):
@@ -86,10 +121,7 @@ class ClipEmbedder:
         return np.asarray(features.cpu().numpy()[0], dtype=np.float32)
 
     def describe(self, image: Image) -> Descriptor:
-        return Descriptor(
-            identity=l2_normalise(self._encode(_centre_crop(image, self._identity_crop))),
-            content=l2_normalise(self._encode(image)),
-        )
+        return describe_with(self._encode, image, identity_crop=self._identity_crop)
 
 
 class ArcFaceEmbedder:
@@ -122,14 +154,16 @@ class ArcFaceEmbedder:
         return self._identity_dim
 
     def describe(self, image: Image) -> Descriptor:
-        content = self._fallback.describe(image).content
+        # One fallback pass, reused for both branches: the classical descriptor is
+        # the content vector either way, and also the identity vector when no face
+        # is found.
+        fallback = self._fallback.describe(image)
         frame = (np.clip(image, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)[:, :, ::-1]
-        faces = self._app.get(frame)
-        if not faces:
+        largest = select_largest_face(self._app.get(frame))
+        if largest is None:
             self.misses += 1
-            return Descriptor(identity=self._fallback.describe(image).identity, content=content)
-        largest = max(faces, key=lambda face: float(np.prod(face.bbox[2:] - face.bbox[:2])))
+            return fallback
         return Descriptor(
             identity=l2_normalise(np.asarray(largest.normed_embedding, dtype=np.float32)),
-            content=content,
+            content=fallback.content,
         )

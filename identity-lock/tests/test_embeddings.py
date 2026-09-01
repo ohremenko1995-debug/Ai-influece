@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.util
+from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -12,8 +16,12 @@ from identitylock.embeddings import (
     l2_normalise,
     registered,
 )
-from identitylock.embeddings.classical import rgb_to_hsv
-from identitylock.embeddings.learned import MissingBackendError
+from identitylock.embeddings.classical import centre_crop, rgb_to_hsv
+from identitylock.embeddings.learned import (
+    MissingBackendError,
+    describe_with,
+    select_largest_face,
+)
 from identitylock.providers.synthetic import render, scene_for, traits_for
 
 
@@ -113,7 +121,93 @@ class TestRegistry:
         with pytest.raises(ValueError, match="Available: arcface, classical, clip"):
             get_embedder("nope")
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("open_clip") is not None,
+        reason="open_clip is installed in this environment, so the error cannot fire",
+    )
     def test_a_missing_dependency_says_how_to_install_it(self) -> None:
         """A learned backend is never silently swapped for the classical one."""
         with pytest.raises(MissingBackendError, match="pip install"):
             get_embedder("clip")
+
+    @pytest.mark.skipif(
+        importlib.util.find_spec("open_clip") is None,
+        reason="open_clip is not installed here",
+    )
+    def test_an_installed_backend_is_never_reported_as_missing(self) -> None:
+        """With the dependency present, any failure must be about weights, not imports.
+
+        This pair of tests exists because the suite used to assume the optional
+        extra was absent: installing it turned the suite red, which is a property
+        of the tests rather than of the code.
+        """
+        # The assertion is on the exception *type*, so a broad catch is the point here.
+        with pytest.raises(Exception) as caught:
+            get_embedder("clip")
+        assert not isinstance(caught.value, MissingBackendError)
+
+
+@dataclass(frozen=True, slots=True)
+class _Face:
+    """Stands in for an insightface detection."""
+
+    bbox: tuple[float, float, float, float]
+    normed_embedding: tuple[float, ...]
+
+
+class TestLearnedWiring:
+    """The learned backends' routing, tested without weights.
+
+    The weight-loading and inference paths cannot run in this environment — the
+    network policy denies `huggingface.co` and `download.pytorch.org`. What *can*
+    be pinned is the wiring around the model, which is where a silent bug would
+    live: reading identity from the wrong region, or picking the wrong face.
+    """
+
+    def test_identity_comes_from_the_crop_and_content_from_the_frame(self) -> None:
+        seen: list[tuple[int, int]] = []
+
+        def encode(image: np.ndarray) -> np.ndarray:
+            seen.append((image.shape[0], image.shape[1]))
+            return np.asarray([float(image.shape[0]), 1.0, 0.0], dtype=np.float32)
+
+        image = np.zeros((100, 100, 3), dtype=np.float32)
+        descriptor = describe_with(encode, image, identity_crop=0.5)
+
+        assert seen == [(50, 50), (100, 100)]
+        assert descriptor.identity[0] < descriptor.content[0]
+
+    def test_both_vectors_are_normalised(self) -> None:
+        def encode(image: np.ndarray) -> np.ndarray:
+            return np.asarray([3.0, 4.0, 0.0], dtype=np.float32) * float(image.shape[0])
+
+        descriptor = describe_with(
+            encode, np.zeros((64, 64, 3), dtype=np.float32), identity_crop=0.5
+        )
+        assert float(np.linalg.norm(descriptor.identity)) == pytest.approx(1.0, abs=1e-6)
+        assert float(np.linalg.norm(descriptor.content)) == pytest.approx(1.0, abs=1e-6)
+
+    def test_the_crop_fraction_is_honoured(self) -> None:
+        image = np.zeros((200, 200, 3), dtype=np.float32)
+        assert centre_crop(image, 0.5).shape[:2] == (100, 100)
+        assert centre_crop(image, 1.0).shape[:2] == (200, 200)
+
+    def test_picks_the_largest_face(self) -> None:
+        small = _Face(bbox=(0.0, 0.0, 10.0, 10.0), normed_embedding=(1.0, 0.0))
+        large = _Face(bbox=(50.0, 50.0, 150.0, 150.0), normed_embedding=(0.0, 1.0))
+        assert select_largest_face([small, large]) is large
+        assert select_largest_face([large, small]) is large
+
+    def test_an_empty_detection_is_none_not_an_index_error(self) -> None:
+        assert select_largest_face([]) is None
+
+    def test_a_degenerate_box_does_not_win(self) -> None:
+        """A zero-area detection must never beat a real one."""
+        empty = _Face(bbox=(10.0, 10.0, 10.0, 10.0), normed_embedding=(1.0, 0.0))
+        real = _Face(bbox=(0.0, 0.0, 4.0, 4.0), normed_embedding=(0.0, 1.0))
+        assert select_largest_face([empty, real]) is real
+
+    def test_inverted_boxes_are_clamped_to_zero_area(self) -> None:
+        inverted: Any = _Face(bbox=(100.0, 100.0, 0.0, 0.0), normed_embedding=(1.0, 0.0))
+        real = _Face(bbox=(0.0, 0.0, 2.0, 2.0), normed_embedding=(0.0, 1.0))
+        assert select_largest_face([inverted, real]) is real

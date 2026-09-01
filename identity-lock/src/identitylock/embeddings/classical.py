@@ -83,7 +83,8 @@ def _resize(image: Image, size: int) -> Image:
     return np.asarray(resized, dtype=np.float32) / 255.0
 
 
-def _centre_crop(image: Image, fraction: float) -> Image:
+def centre_crop(image: Image, fraction: float) -> Image:
+    """The central ``fraction`` of a frame — the subject region every backend reads."""
     height, width = image.shape[0], image.shape[1]
     crop_h = max(1, round(height * fraction))
     crop_w = max(1, round(width * fraction))
@@ -320,7 +321,7 @@ class ClassicalEmbedder:
         return self._identity_dim
 
     def describe(self, image: Image) -> Descriptor:
-        subject = _resize(_centre_crop(image, self._identity_crop), _IDENTITY_SIZE)
+        subject = _resize(centre_crop(image, self._identity_crop), _IDENTITY_SIZE)
         subject_gray = luma(subject)
         subject_hsv = rgb_to_hsv(subject)
 
