@@ -27,7 +27,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from identitylock.domain.models import Candidate
+from identitylock.domain.models import Candidate, content_hash
 from identitylock.imaging.loader import sha256_file
 from identitylock.providers.base import GenerationRequest, ProviderError
 
@@ -144,7 +144,11 @@ class ComfyUIProvider:
         self._timeout = timeout
         self._poll_interval = poll_interval
         self._client_id = str(uuid.uuid4())
-        self.name = f"comfyui:{self._base_url}"
+        # The workflow identifies the configuration; the base URL identifies the
+        # machine. Only the first belongs in a report that gets shared — a URL can
+        # carry an internal hostname or embedded credentials, and it makes the
+        # `provider` field differ between two machines running the same setup.
+        self.name = f"comfyui:{content_hash(self._workflow)}"
 
     def _submit(self, client: Any, graph: dict[str, Any]) -> str:
         response = client.post(

@@ -243,13 +243,18 @@ def render_run_report(
     thumbnails: bool = True,
     limitations: Iterable[str] = (),
 ) -> str:
-    """Render one run as a standalone HTML document."""
+    """Render one run as a standalone HTML document.
+
+    ``policy`` defaults to the one the run was judged under, which the manifest
+    carries. Pass it only to re-draw the gates under a different policy.
+    """
+    policy = policy or result.manifest.policy
     aggregates = result.aggregates
     identity = [item.metrics.identity_similarity for item in result.candidates]
     technical = [item.metrics.technical_score for item in result.candidates]
     accepted = [item.decision == "accept" for item in result.candidates]
-    threshold = policy.identity_min if policy else min(identity, default=0.0)
-    technical_threshold = policy.technical_min if policy else None
+    threshold = policy.identity_min
+    technical_threshold = policy.technical_min
 
     verdict_class = "verdict panel" + ("" if result.verdict.passed else " fail")
     failed = ", ".join(result.verdict.failed_gates)

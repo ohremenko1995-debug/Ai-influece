@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -24,6 +25,7 @@ from identitylock.evaluation import (
 from identitylock.evaluation.bootstrap import reference_recipe
 from identitylock.evaluation.store import StoreError, list_comparisons, load_comparison
 from identitylock.evaluation.validation import render_validation
+from identitylock.providers import build_provider
 from identitylock.providers.base import GenerationProvider
 from tests.conftest import TINY_SUITE
 
@@ -344,3 +346,116 @@ class TestStore:
     def test_a_missing_comparison_is_an_error(self, tmp_path: Path) -> None:
         with pytest.raises(StoreError, match="No comparison"):
             load_comparison(tmp_path / "nope.json")
+
+
+class _CountingEmbedder:
+    """Wraps an embedder and counts how often a frame is described."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self.calls = 0
+
+    @property
+    def name(self) -> str:
+        return str(self._inner.name)
+
+    @property
+    def identity_dim(self) -> int:
+        return int(self._inner.identity_dim)
+
+    def describe(self, image: Any) -> Any:
+        self.calls += 1
+        return self._inner.describe(image)
+
+
+class TestManifestCarriesWhatTheRunWasJudgedUnder:
+    """A report must be able to draw its own gate lines without the suite file."""
+
+    def test_the_policy_travels_with_the_run(
+        self, bootstrapped: SuiteFile, evaluator: Evaluator, tmp_path: Path
+    ) -> None:
+        result = evaluator.run(bootstrapped, "locked", run_dir=tmp_path / "run", run_id="r1")
+        assert result.manifest.policy == bootstrapped.policy
+        assert result.manifest.policy.fingerprint() == result.manifest.policy_hash
+
+    def test_it_survives_a_round_trip(
+        self, bootstrapped: SuiteFile, evaluator: Evaluator, tmp_path: Path
+    ) -> None:
+        runs = tmp_path / "runs"
+        result = evaluator.run(bootstrapped, "locked", run_dir=runs / "r1", run_id="r1")
+        save_run(result, runs)
+        assert load_run(runs / "r1").manifest.policy == bootstrapped.policy
+
+    def test_the_identity_space_is_fingerprinted(
+        self, bootstrapped: SuiteFile, evaluator: Evaluator, tmp_path: Path
+    ) -> None:
+        result = evaluator.run(bootstrapped, "locked", run_dir=tmp_path / "run", run_id="r1")
+        assert len(result.manifest.identity_space) == 16
+
+    def test_a_backend_without_misses_reports_zero(
+        self, bootstrapped: SuiteFile, evaluator: Evaluator, tmp_path: Path
+    ) -> None:
+        result = evaluator.run(bootstrapped, "locked", run_dir=tmp_path / "run", run_id="r1")
+        assert result.manifest.embedder_misses == 0
+
+
+class TestEachFrameIsDescribedOnce:
+    """Identity and content come from one pass; the loop used to make two."""
+
+    def test_one_describe_per_cell(self, bootstrapped: SuiteFile, tmp_path: Path) -> None:
+        from identitylock.embeddings import get_embedder
+
+        counting = _CountingEmbedder(get_embedder())
+        evaluator = Evaluator(
+            provider=build_provider("synthetic"),
+            embedder=counting,
+            policy=bootstrapped.policy,
+        )
+        cohort = evaluator.build_cohort(bootstrapped, bootstrapped.cohort_ids())
+        before = counting.calls
+        result = evaluator.run(
+            bootstrapped, "locked", run_dir=tmp_path / "run", cohort=cohort, run_id="r1"
+        )
+        assert counting.calls - before == len(result.candidates)
+
+
+class TestIdentitySpaceComparability:
+    """Two runs centred differently are not paired, however matched their cells."""
+
+    def test_a_different_space_is_refused(
+        self, bootstrapped: SuiteFile, evaluator: Evaluator, tmp_path: Path
+    ) -> None:
+        baseline = evaluator.run(bootstrapped, "loose", run_dir=tmp_path / "a", run_id="a")
+        challenger = evaluator.run(bootstrapped, "locked", run_dir=tmp_path / "b", run_id="b")
+        forged = challenger.model_copy(
+            update={
+                "manifest": challenger.manifest.model_copy(
+                    update={"identity_space": "0000000000000000"}
+                )
+            }
+        )
+        with pytest.raises(ComparisonError, match="different identity spaces"):
+            compare(baseline, forged)
+
+    def test_the_same_space_compares_normally(
+        self, bootstrapped: SuiteFile, evaluator: Evaluator, tmp_path: Path
+    ) -> None:
+        baseline = evaluator.run(bootstrapped, "loose", run_dir=tmp_path / "a", run_id="a")
+        challenger = evaluator.run(bootstrapped, "locked", run_dir=tmp_path / "b", run_id="b")
+        assert baseline.manifest.identity_space == challenger.manifest.identity_space
+        assert compare(baseline, challenger).n_pairs == 4
+
+
+class TestReferenceRecipeIsResealed:
+    """A derived recipe must not inherit the revision of the one it came from."""
+
+    def test_the_revision_is_recomputed(self, suite_file: SuiteFile) -> None:
+        base = suite_file.recipe("locked")
+        derived = reference_recipe(suite_file)
+        assert derived.extra != base.extra
+        assert derived.revision != base.revision
+
+    def test_the_revision_matches_its_own_fields(self, suite_file: SuiteFile) -> None:
+        derived = reference_recipe(suite_file)
+        rebuilt = type(derived).model_validate(derived.model_dump(mode="json"))
+        assert rebuilt.revision == derived.revision

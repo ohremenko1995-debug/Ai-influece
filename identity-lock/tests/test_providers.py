@@ -234,3 +234,39 @@ class TestComfyUIContract:
         path.write_text("[1, 2, 3]", encoding="utf-8")
         with pytest.raises(ProviderError, match="API-format workflow"):
             load_workflow(path)
+
+
+class TestProviderNameIsSafeToShare:
+    """`provider` lands in every manifest and every shared report."""
+
+    def test_the_comfyui_name_carries_no_host(self, tmp_path: Path) -> None:
+        workflow = tmp_path / "wf.json"
+        workflow.write_text('{"9": {"class_type": "SaveImage", "inputs": {}}}', encoding="utf-8")
+        provider = build_provider(
+            "comfyui",
+            base_url="http://user:secret@gpu-box.internal:8188",
+            workflow_path=workflow,
+        )
+        assert "gpu-box.internal" not in provider.name
+        assert "secret" not in provider.name
+        assert provider.name.startswith("comfyui:")
+
+    def test_the_name_follows_the_workflow_not_the_machine(self, tmp_path: Path) -> None:
+        first = tmp_path / "a.json"
+        second = tmp_path / "b.json"
+        graph = '{"9": {"class_type": "SaveImage", "inputs": {}}}'
+        first.write_text(graph, encoding="utf-8")
+        second.write_text(graph, encoding="utf-8")
+
+        here = build_provider("comfyui", base_url="http://one:8188", workflow_path=first)
+        there = build_provider("comfyui", base_url="http://two:8188", workflow_path=second)
+        assert here.name == there.name
+
+        changed = tmp_path / "c.json"
+        changed.write_text(
+            '{"9": {"class_type": "SaveImage", "inputs": {"x": 1}}}', encoding="utf-8"
+        )
+        assert (
+            build_provider("comfyui", base_url="http://one:8188", workflow_path=changed).name
+            != here.name
+        )

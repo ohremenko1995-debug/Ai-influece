@@ -215,3 +215,60 @@ class TestDemo:
         assert _run("demo", "--suite", "tiny.yaml") == EXIT_OK
         runs = workspace / "var" / "runs"
         assert (runs / "tiny.locked" / "report.html").is_file()
+
+
+class TestReportDestination:
+    """`--run` accepts a directory or the run.json inside it; both are documented."""
+
+    def _run_once(self, workspace: Path) -> None:
+        _run("bootstrap", "--suite", "tiny.yaml")
+        _run("run", "--suite", "tiny.yaml", "--recipe", "locked", "--run-id", "r1", "--no-report")
+
+    def test_a_directory_target_writes_inside_it(self, workspace: Path) -> None:
+        self._run_once(workspace)
+        assert _run("report", "--run", "var/runs/r1") == EXIT_OK
+        assert (workspace / "var" / "runs" / "r1" / "report.html").is_file()
+
+    def test_a_run_json_target_writes_beside_it(self, workspace: Path) -> None:
+        """This used to raise FileExistsError from mkdir on `run.json/report.html`."""
+        self._run_once(workspace)
+        assert _run("report", "--run", "var/runs/r1/run.json") == EXIT_OK
+        assert (workspace / "var" / "runs" / "r1" / "report.html").is_file()
+
+    def test_the_gates_are_drawn_without_being_handed_the_suite(self, workspace: Path) -> None:
+        self._run_once(workspace)
+        target = workspace / "no-suite.html"
+        assert _run("report", "--run", "var/runs/r1", "--output", str(target)) == EXIT_OK
+        body = target.read_text(encoding="utf-8")
+        assert "identity &#8805;" in body
+
+
+class TestCalibrateWriteIsHonest:
+    """--write must not claim to have written a file it did not touch."""
+
+    def test_a_suite_without_policy_lines_is_reported(
+        self, workspace: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        source = (workspace / "tiny.yaml").read_text()
+        trimmed = source[: source.index("policy:")]
+        (workspace / "bare.yaml").write_text(trimmed, encoding="utf-8")
+        before = (workspace / "bare.yaml").read_text()
+
+        _run("bootstrap", "--suite", "bare.yaml")
+        capsys.readouterr()
+        assert _run("calibrate", "--suite", "bare.yaml", "--seeds", "2", "--write") == EXIT_OK
+
+        out = capsys.readouterr().out
+        assert "not written" in out
+        assert "identity_min" in out
+        assert (workspace / "bare.yaml").read_text() == before
+
+    def test_present_keys_are_named_as_updated(
+        self, workspace: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _run("bootstrap", "--suite", "tiny.yaml")
+        capsys.readouterr()
+        assert _run("calibrate", "--suite", "tiny.yaml", "--seeds", "2", "--write") == EXIT_OK
+        out = capsys.readouterr().out
+        assert "updated in tiny.yaml" in out
+        assert "not written" not in out

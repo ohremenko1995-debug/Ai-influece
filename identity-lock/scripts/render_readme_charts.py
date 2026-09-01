@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
@@ -31,6 +32,8 @@ from identitylock.domain.models import Comparison, RunResult
 from identitylock.evaluation.store import list_comparisons, list_runs
 
 FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+
+DEMO_ORDER = ("locked", "baseline", "drifting", "overcooked")
 
 
 @dataclass(frozen=True, slots=True)
@@ -801,24 +804,22 @@ def chart_forest(comparisons: list[Comparison], theme: Theme) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def candidate_threshold(run: RunResult) -> float:
-    """Recover the per-candidate identity gate from a run.
+def candidate_threshold(runs: Sequence[RunResult]) -> float:
+    """The per-candidate identity gate these runs were judged under.
 
-    The threshold is not stored on the result — the policy is, by fingerprint —
-    so it is bracketed between the worst accepted take and the best one rejected
-    *for identity*.
+    Read straight off the manifest — every run carries the policy it was gated
+    with. This used to be reverse-engineered from which frames were rejected,
+    which was a guess, and disagreed with the report whenever nothing had been
+    rejected for identity.
     """
-    rejected = [
-        item.metrics.identity_similarity
-        for item in run.candidates
-        if any(reason.startswith("identity") for reason in item.rejections)
-    ]
-    accepted = [
-        item.metrics.identity_similarity for item in run.candidates if item.decision == "accept"
-    ]
-    if rejected and accepted:
-        return (max(rejected) + min(accepted)) / 2
-    return min(item.metrics.identity_similarity for item in run.candidates)
+    thresholds = {run.manifest.policy.identity_min for run in runs}
+    if len(thresholds) > 1:
+        joined = ", ".join(f"{value:.4f}" for value in sorted(thresholds))
+        raise SystemExit(
+            f"the runs were judged under different identity thresholds ({joined}); "
+            "one chart cannot draw one gate line for them. Re-run them under one policy."
+        )
+    return next(iter(thresholds))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -830,36 +831,52 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     runs = {run.suite.recipe.id: run for run in list_runs(args.runs)}
-    order = [name for name in ("locked", "baseline", "drifting", "overcooked") if name in runs]
+    order = [name for name in DEMO_ORDER if name in runs]
     if not order:
         parser.error(f"no runs under {args.runs} — run `make demo` first")
     ordered = [runs[name] for name in order]
+
+    # Every figure below is *about* the locked recipe: it is the reference the
+    # others are compared against. Without it the charts would be mislabelled
+    # rather than merely incomplete, so say so instead of raising a KeyError.
+    if "locked" not in runs:
+        parser.error(
+            f"no `locked` run under {args.runs} — the figures compare the other "
+            "recipes against it. Run `make demo`, or `identitylock run --recipe locked`."
+        )
+    drifting = runs.get("drifting", ordered[-1])
 
     comparisons = list_comparisons(args.comparisons)
     rank = {"identity": 0, "technical": 1}
     comparisons.sort(key=lambda c: (rank.get(c.metric, 9), c.baseline_run_id))
 
     calibration = json.loads(args.calibration.read_text(encoding="utf-8"))
-    threshold = float(calibration["policy"]["identity_min"])
+    threshold = candidate_threshold(ordered)
 
     args.out.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
+    skipped: list[str] = []
     for theme in (LIGHT, DARK):
         figures = {
             "verdicts": chart_verdicts(ordered, threshold, theme),
-            "drift": chart_drift(
-                runs["locked"], runs.get("drifting", ordered[-1]), threshold, theme
-            ),
+            "drift": chart_drift(runs["locked"], drifting, threshold, theme),
             "verification": chart_verification(calibration, theme),
-            "comparisons": chart_forest(comparisons, theme),
+            # An empty comparison set is a normal state (nothing compared yet), not
+            # an error — but it must not half-write the figure set either.
+            "comparisons": chart_forest(comparisons, theme) if comparisons else "",
         }
         for name, markup in figures.items():
+            if not markup:
+                skipped.append(f"{name}-{theme.name}.svg")
+                continue
             path = args.out / f"{name}-{theme.name}.svg"
             path.write_text(markup, encoding="utf-8")
             written.append(path)
 
     for path in written:
         print(f"  {path}  {path.stat().st_size / 1024:.1f} kB")
+    for name in skipped:
+        print(f"  skipped {name} — nothing to plot")
     return 0
 
 

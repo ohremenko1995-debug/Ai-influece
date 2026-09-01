@@ -8,77 +8,27 @@ re-applied to an archived run without regenerating anything.
 
 from __future__ import annotations
 
-from pydantic import Field
-
 from identitylock.domain.models import (
     CandidateMetrics,
     Comparison,
     ComparisonOutcome,
+    ComparisonPolicy,
     ComparisonVerdict,
     Decision,
     GateOutcome,
+    Policy,
     RunAggregates,
     RunVerdict,
-    _Frozen,
-    content_hash,
 )
 
-
-class Policy(_Frozen):
-    """Per-candidate and per-run acceptance thresholds.
-
-    Defaults are tuned for the bundled classical descriptor on the synthetic
-    cohort. They are *not* universal constants — re-calibrate against your own
-    reference set before trusting them (see ``docs/evaluation-protocol.md``).
-    """
-
-    identity_min: float = Field(default=0.70, ge=-1.0, le=1.0)
-    """Cosine to the character centroid below which a take is off-model."""
-
-    margin_min: float = Field(default=0.04, ge=0.0, le=2.0)
-    """How far the take must sit from the closest impostor in the cohort."""
-
-    technical_min: float = Field(default=0.40, ge=0.0, le=1.0)
-    """Composite sharpness / exposure / contrast floor."""
-
-    consistency_rate_min: float = Field(default=0.80, ge=0.0, le=1.0)
-    """Share of the batch that must pass the per-candidate gates."""
-
-    identity_p05_min: float = Field(default=0.60, ge=-1.0, le=1.0)
-    """Fifth percentile floor — the worst takes, not the average one."""
-
-    drift_abs_max: float = Field(default=0.050, ge=0.0, le=1.0)
-    """Practical drift limit: max |slope| of identity per 10 frames.
-
-    A product decision, not a fitted one — "the character may lose at most this
-    much similarity over ten frames before the batch is not usable". Statistical
-    significance alone must not fail a batch: with enough frames a slope of 0.001
-    becomes significant and still means nothing."""
-
-    drift_alpha: float = Field(default=0.05, gt=0.0, lt=0.5)
-    """Significance level for the drift permutation test.
-
-    The gate fails only when the slope is both *larger than* ``drift_abs_max`` and
-    *steeper than chance* at this level. Requiring both is what stops the gate from
-    firing on a batch whose four prompts simply differ in difficulty."""
-
-    diversity_min: float = Field(default=0.08, ge=0.0, le=2.0)
-    """Accepted takes must differ from each other; near-duplicates are not a batch."""
-
-    def fingerprint(self) -> str:
-        return content_hash(self.model_dump(mode="json"))
-
-
-class ComparisonPolicy(_Frozen):
-    """When an A/B is allowed to be called a win."""
-
-    min_win_rate: float = Field(default=0.55, ge=0.0, le=1.0)
-    min_effect_size: float = Field(default=0.15, ge=0.0)
-    ci_level: float = Field(default=0.95, gt=0.5, lt=1.0)
-    bootstrap_samples: int = Field(default=10_000, ge=200, le=200_000)
-
-    def fingerprint(self) -> str:
-        return content_hash(self.model_dump(mode="json"))
+__all__ = [
+    "ComparisonPolicy",
+    "Policy",
+    "comparison_exit_code",
+    "evaluate_candidate",
+    "evaluate_comparison",
+    "evaluate_run",
+]
 
 
 def evaluate_candidate(
@@ -160,6 +110,13 @@ def evaluate_comparison(
     """
     gates = (
         GateOutcome(
+            name="enough_pairs",
+            passed=n_pairs >= policy.min_pairs,
+            observed=float(n_pairs),
+            threshold=float(policy.min_pairs),
+            detail="a bootstrap over too few cells returns an interval it has not earned",
+        ),
+        GateOutcome(
             name="ci_excludes_zero",
             passed=ci_low > 0.0 or ci_high < 0.0,
             observed=ci_low if mean_delta >= 0 else ci_high,
@@ -183,6 +140,14 @@ def evaluate_comparison(
     )
 
     outcome: ComparisonOutcome
+    if n_pairs < policy.min_pairs:
+        outcome = "inconclusive"
+        rationale = (
+            f"Only {n_pairs} paired cell(s); at least {policy.min_pairs} are needed "
+            "before an interval means anything."
+        )
+        return ComparisonVerdict(outcome=outcome, gates=gates, rationale=rationale)
+
     if ci_high < 0.0:
         outcome = "regression"
         rationale = (

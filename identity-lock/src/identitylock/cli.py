@@ -315,33 +315,47 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
         console.write(f"  {console.warn('warning')} {warning}")
 
     if args.write:
-        _rewrite_policy(args.suite, calibration.suggested)
-        console.write(f"\n  written into {args.suite}")
+        written = _rewrite_policy(args.suite, calibration.suggested)
+        missing = [key for key in CALIBRATED_KEYS if key not in written]
+        if written:
+            console.write(f"\n  updated in {args.suite}: {', '.join(written)}")
+        if missing:
+            console.write(
+                f"  {console.warn('not written')} {', '.join(missing)} — the suite file "
+                "has no line for these, so there was nothing to replace. Add them "
+                "under `policy:` with the values above."
+            )
     else:
         console.muted("\n  re-run with --write to store these thresholds in the suite file")
     return EXIT_OK
 
 
-def _rewrite_policy(path: Path, policy: Policy) -> None:
-    """Replace the four calibrated values in a suite file, leaving the rest alone.
+CALIBRATED_KEYS = ("identity_min", "identity_p05_min", "margin_min", "consistency_rate_min")
+
+
+def _rewrite_policy(path: Path, policy: Policy) -> tuple[str, ...]:
+    """Replace the calibrated values in a suite file, leaving the rest alone.
 
     A line edit rather than a YAML round-trip: rewriting the document would strip
     every comment in it, and the comments are where the reasoning lives.
+
+    Returns the keys it actually replaced. A suite that never wrote those keys
+    down (they all have defaults) gets nothing rewritten, and the caller has to say
+    so instead of printing "written" over a file it did not touch.
     """
-    calibrated = {
-        "identity_min": policy.identity_min,
-        "identity_p05_min": policy.identity_p05_min,
-        "margin_min": policy.margin_min,
-        "consistency_rate_min": policy.consistency_rate_min,
-    }
+    values = {key: getattr(policy, key) for key in CALIBRATED_KEYS}
     lines = path.read_text(encoding="utf-8").splitlines()
+    written: list[str] = []
     for index, line in enumerate(lines):
         stripped = line.strip()
-        for key, value in calibrated.items():
+        for key, value in values.items():
             if stripped.startswith(f"{key}:"):
                 indent = line[: len(line) - len(line.lstrip())]
                 lines[index] = f"{indent}{key}: {value}"
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                written.append(key)
+    if written:
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return tuple(written)
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -499,11 +513,26 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _report_destination(run: Path, output: Path | None) -> Path:
+    """Where a regenerated report goes.
+
+    ``--run`` accepts a run directory *or* the run.json inside it, both documented.
+    Joining "report.html" onto the file form yields `run.json/report.html`, which
+    fails with FileExistsError when the parent is created — so the file form
+    resolves to its own directory.
+    """
+    if output is not None:
+        return output
+    return (run.parent if run.is_file() else run) / "report.html"
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     console = Console()
     result = load_run(args.run)
+    # The run carries the policy it was judged under, so the gate lines are drawn
+    # from the run itself; --suite only overrides them deliberately.
     policy = _load(args.suite).policy if args.suite else None
-    target = args.output or (Path(args.run) / "report.html")
+    target = _report_destination(Path(args.run), args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(render_run_report(result, policy=policy), encoding="utf-8")
     console.write(f"  {target}")

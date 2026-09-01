@@ -56,6 +56,20 @@ class Embedder(Protocol):
         """Describe one normalised frame."""
 
 
+@runtime_checkable
+class ReportsMisses(Protocol):
+    """A backend that can fail to measure a frame, and counts how often it did.
+
+    Optional: the classical descriptor always produces a vector, so it does not
+    implement this. The runner reports the count when the backend offers one, which
+    is how a detection failure reaches the report instead of vanishing.
+    """
+
+    @property
+    def misses(self) -> int:
+        """Frames this backend could not measure."""
+
+
 def l2_normalise(vector: Vector) -> Vector:
     """Unit-length, with an explicit zero-vector answer instead of a NaN."""
     norm = float(np.linalg.norm(vector))

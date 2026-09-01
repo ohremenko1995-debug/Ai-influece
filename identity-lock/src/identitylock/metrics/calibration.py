@@ -175,9 +175,9 @@ def calibrate(profiles: Sequence[ReferenceProfile], *, base: Policy | None = Non
     separations = [item.separation for item in per_character if item.impostor_id is not None]
     median_separation = float(np.median(separations)) if separations else 0.0
 
-    template = base or Policy()
-    suggested = template.model_copy(
-        update={
+    suggested = Policy.model_validate(
+        {
+            **(base or Policy()).model_dump(mode="json"),
             "identity_min": round(max(-1.0, floor - IDENTITY_SLACK), 4),
             "identity_p05_min": round(max(-1.0, floor - 2 * IDENTITY_SLACK), 4),
             "margin_min": round(max(0.02, MARGIN_FRACTION * median_separation), 4),
@@ -387,10 +387,14 @@ def calibrate_from_validation(
     # anything above 1 - frr would fail a perfect generator.
     consistency_floor = float(np.clip(1.0 - frr - CONSISTENCY_SLACK, 0.50, 0.95))
 
-    suggested = (base or Policy()).model_copy(
-        update={
-            "identity_min": round(threshold, 4),
-            "identity_p05_min": round(threshold - IDENTITY_SLACK, 4),
+    # `model_validate`, not `model_copy`: a copy skips the field validators, so a
+    # threshold outside its declared range would be written to the suite file and
+    # only fail — uncaught — the next time that suite is loaded.
+    suggested = Policy.model_validate(
+        {
+            **(base or Policy()).model_dump(mode="json"),
+            "identity_min": round(max(-1.0, threshold), 4),
+            "identity_p05_min": round(max(-1.0, threshold - IDENTITY_SLACK), 4),
             "margin_min": round(margin_floor, 4),
             "consistency_rate_min": round(consistency_floor, 4),
         }

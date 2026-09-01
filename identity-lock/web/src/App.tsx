@@ -169,19 +169,12 @@ function RunView({ run }: { run: RunDetail }): JSX.Element {
   const [sort, setSort] = useState<SortKey>('order')
   const [open, setOpen] = useState<Candidate | null>(null)
 
-  const identityGate = run.gates.find((gate) => gate.name === 'identity_p05')
-  const threshold = useMemo(() => {
-    const rejected = run.candidates
-      .filter((item) => item.decision === 'reject' && item.rejections.some((r) => r.startsWith('identity')))
-      .map((item) => item.metrics.identity_similarity)
-    const accepted = run.candidates
-      .filter((item) => item.decision === 'accept')
-      .map((item) => item.metrics.identity_similarity)
-    // The candidate threshold is not stored on the run; it sits strictly between
-    // the worst accepted frame and the best frame rejected *for identity*.
-    if (rejected.length > 0 && accepted.length > 0) return (Math.max(...rejected) + Math.min(...accepted)) / 2
-    return identityGate?.threshold ?? Math.min(...run.candidates.map((c) => c.metrics.identity_similarity))
-  }, [run, identityGate])
+  // The thresholds come from the run's own manifest. This used to be inferred from
+  // which frames were rejected, which silently fell back to a different gate when
+  // nothing had been rejected for identity — and then disagreed with the static
+  // report about where the line was.
+  const threshold = run.policy.identity_min
+  const technicalThreshold = run.policy.technical_min
 
   const visible = useMemo(() => {
     const filtered = run.candidates.filter((item) => {
@@ -203,16 +196,6 @@ function RunView({ run }: { run: RunDetail }): JSX.Element {
   const identity = run.candidates.map((item) => item.metrics.identity_similarity)
   const technical = run.candidates.map((item) => item.metrics.technical_score)
   const accepted = run.candidates.map((item) => item.decision === 'accept')
-  const technicalThreshold = useMemo(() => {
-    const bad = run.candidates
-      .filter((item) => item.rejections.some((r) => r.startsWith('technical')))
-      .map((item) => item.metrics.technical_score)
-    const good = run.candidates
-      .filter((item) => !item.rejections.some((r) => r.startsWith('technical')))
-      .map((item) => item.metrics.technical_score)
-    if (bad.length > 0 && good.length > 0) return (Math.max(...bad) + Math.min(...good)) / 2
-    return undefined
-  }, [run])
 
   return (
     <>

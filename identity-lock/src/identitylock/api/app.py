@@ -57,6 +57,10 @@ def _summarise(result: RunResult) -> dict[str, Any]:
 def _detail(result: RunResult, run_root: Path) -> dict[str, Any]:
     payload = _summarise(result)
     payload["gates"] = [gate.model_dump() for gate in result.verdict.gates]
+    # The thresholds the run was actually judged under. Without them the dashboard
+    # had to infer the candidate gate from which frames were rejected, which
+    # disagreed with the static report whenever nothing was rejected for identity.
+    payload["policy"] = result.manifest.policy.model_dump(mode="json")
     payload["manifest"] = result.manifest.model_dump(mode="json")
     payload["suite"] = {
         "id": result.suite.id,

@@ -131,19 +131,41 @@ class ArcFaceEmbedder:
     embedding trained for verification, where cosine has a calibrated meaning and
     an impostor margin is the number the face-recognition literature reports.
 
-    Frames with no detectable face fall back to the classical identity descriptor
-    and are flagged, because silently scoring a faceless frame as "identity 0.0"
-    would poison the batch statistics with a detection failure.
+    A frame with no detectable face cannot be verified at all. It is scored as a
+    zero identity vector — the same dimension as every other frame, so the run does
+    not crash, and a cosine of exactly 0.0, so the identity gate *rejects* it rather
+    than accepting it against a different yardstick. The count is exposed as
+    ``misses`` and travels into the run manifest, so a batch that failed detection
+    rather than failing identity is distinguishable in the report.
+
+    (An earlier version returned the classical descriptor here. That is 292-d
+    against this backend's 512-d space, so the first undetectable face aborted the
+    run with a broadcast error.)
     """
 
-    def __init__(self, model_pack: str = "buffalo_l", *, det_size: int = 640) -> None:
-        try:
-            from insightface.app import FaceAnalysis
-        except ImportError as error:  # pragma: no cover - depends on optional extra
-            raise MissingBackendError("arcface", "insightface onnxruntime") from error
+    def __init__(
+        self,
+        model_pack: str = "buffalo_l",
+        *,
+        det_size: int = 640,
+        app: Any | None = None,
+    ) -> None:
+        """Build the backend.
 
-        self._app: Any = FaceAnalysis(name=model_pack)
-        self._app.prepare(ctx_id=-1, det_size=(det_size, det_size))
+        ``app`` accepts an already-prepared ``FaceAnalysis``. That lets a caller
+        share one loaded model across embedders instead of paying the load twice —
+        and it is what makes the detection paths testable without model weights.
+        """
+        if app is None:
+            try:
+                from insightface.app import FaceAnalysis
+            except ImportError as error:  # pragma: no cover - depends on optional extra
+                raise MissingBackendError("arcface", "insightface onnxruntime") from error
+
+            app = FaceAnalysis(name=model_pack)
+            app.prepare(ctx_id=-1, det_size=(det_size, det_size))
+
+        self._app: Any = app
         self._fallback = ClassicalEmbedder()
         self.name = f"arcface:{model_pack}"
         self._identity_dim = 512
@@ -162,7 +184,10 @@ class ArcFaceEmbedder:
         largest = select_largest_face(self._app.get(frame))
         if largest is None:
             self.misses += 1
-            return fallback
+            return Descriptor(
+                identity=np.zeros(self._identity_dim, dtype=np.float32),
+                content=fallback.content,
+            )
         return Descriptor(
             identity=l2_normalise(np.asarray(largest.normed_embedding, dtype=np.float32)),
             content=fallback.content,

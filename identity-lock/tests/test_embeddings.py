@@ -211,3 +211,69 @@ class TestLearnedWiring:
         inverted: Any = _Face(bbox=(100.0, 100.0, 0.0, 0.0), normed_embedding=(1.0, 0.0))
         real = _Face(bbox=(0.0, 0.0, 2.0, 2.0), normed_embedding=(0.0, 1.0))
         assert select_largest_face([inverted, real]) is real
+
+
+class _FakeAnalysis:
+    """Stands in for a prepared insightface FaceAnalysis."""
+
+    def __init__(self, faces: list[_Face]) -> None:
+        self._faces = faces
+        self.frames: list[tuple[int, int, int]] = []
+
+    def get(self, frame: np.ndarray) -> list[_Face]:
+        self.frames.append(frame.shape)
+        return self._faces
+
+
+class TestArcFaceDetectionPaths:
+    """The paths that decide what happens when detection succeeds or fails.
+
+    Weights are never loaded here — the analyser is injected. These are regressions:
+    the miss path used to return the 292-d classical descriptor into a 512-d space,
+    which aborted the whole run on the first undetectable face.
+    """
+
+    def _embedder(self, faces: list[_Face]) -> Any:
+        from identitylock.embeddings.learned import ArcFaceEmbedder
+
+        return ArcFaceEmbedder(app=_FakeAnalysis(faces))
+
+    def test_a_missing_face_keeps_the_declared_dimension(self) -> None:
+        embedder = self._embedder([])
+        descriptor = embedder.describe(np.zeros((64, 64, 3), dtype=np.float32))
+        assert len(descriptor.identity) == embedder.identity_dim == 512
+
+    def test_a_missing_face_scores_zero_so_the_gate_rejects_it(self) -> None:
+        from identitylock.embeddings.base import cosine
+
+        embedder = self._embedder([])
+        descriptor = embedder.describe(np.zeros((64, 64, 3), dtype=np.float32))
+        reference = l2_normalise(np.ones(512, dtype=np.float32))
+        assert cosine(descriptor.identity, reference) == 0.0
+
+    def test_a_missing_face_still_yields_a_usable_content_vector(self) -> None:
+        embedder = self._embedder([])
+        descriptor = embedder.describe(np.zeros((64, 64, 3), dtype=np.float32))
+        assert float(np.linalg.norm(descriptor.content)) == pytest.approx(1.0, abs=1e-5)
+
+    def test_misses_are_counted_so_the_manifest_can_report_them(self) -> None:
+        embedder = self._embedder([])
+        assert embedder.misses == 0
+        for _ in range(3):
+            embedder.describe(np.zeros((32, 32, 3), dtype=np.float32))
+        assert embedder.misses == 3
+
+    def test_a_detected_face_supplies_the_identity_vector(self) -> None:
+        embedding = tuple(float(value) for value in np.eye(512, dtype=np.float32)[7])
+        embedder = self._embedder([_Face(bbox=(0.0, 0.0, 40.0, 40.0), normed_embedding=embedding)])
+        descriptor = embedder.describe(np.zeros((64, 64, 3), dtype=np.float32))
+        assert embedder.misses == 0
+        assert float(descriptor.identity[7]) == pytest.approx(1.0)
+
+    def test_the_analyser_is_handed_bgr_uint8(self) -> None:
+        """insightface expects OpenCV ordering, not the harness's float RGB."""
+        analysis = _FakeAnalysis([])
+        from identitylock.embeddings.learned import ArcFaceEmbedder
+
+        ArcFaceEmbedder(app=analysis).describe(np.zeros((48, 64, 3), dtype=np.float32))
+        assert analysis.frames == [(48, 64, 3)]

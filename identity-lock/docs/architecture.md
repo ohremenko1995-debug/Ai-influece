@@ -92,14 +92,23 @@ suites/
 
 `run.json` is a pydantic dump of a frozen model tree, so it round-trips exactly:
 `load_run(save_run(result)) == result`. The report schema version lives in
-`identitylock.REPORT_SCHEMA_VERSION` and in every manifest.
+`identitylock.REPORT_SCHEMA_VERSION` and in every manifest; it is at 2, and a
+version-1 file does not load because the fields it gained cannot be inferred.
 
 ## Reproducibility
 
 Every run records what it would take to reproduce it: tool version, report schema
 version, Python version, platform, provider name, embedder name and dimension,
-suite id, character id, recipe revision, policy fingerprint, and the SHA-256 of
-every reference image.
+suite id, character id, recipe revision, the SHA-256 of every reference image —
+and two things it is worth being specific about:
+
+- **the policy itself**, not only its fingerprint. A report has to draw its own
+  gate lines, and a consumer that only has a hash ends up reverse-engineering the
+  threshold from which candidates were rejected. Three places in this codebase
+  did exactly that, and disagreed with each other.
+- **the identity space fingerprint.** Adding a character to the cohort, or
+  changing an impostor's references, refits the centring and moves every cosine.
+  Two runs whose spaces differ are not comparable, and `compare` refuses them.
 
 Every resampling function takes an explicit seed and is deterministic given it. The
 synthetic provider is deterministic in `(recipe revision, character, prompt, seed)`,

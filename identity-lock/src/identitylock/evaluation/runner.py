@@ -26,7 +26,7 @@ from identitylock.domain.models import (
     ScoredCandidate,
 )
 from identitylock.domain.policy import Policy, evaluate_candidate, evaluate_run
-from identitylock.embeddings.base import Embedder, Vector
+from identitylock.embeddings.base import Embedder, ReportsMisses, Vector
 from identitylock.evaluation.suite import SuiteFile
 from identitylock.imaging.loader import load_image, sha256_file
 from identitylock.imaging.stats import frame_stats, technical_score
@@ -184,10 +184,13 @@ class Evaluator:
                     f"cell {request.candidate_id}: {error}"
                 ) from error
 
-            scored.append(self._score(candidate, cohort, own))
-            content_vectors.append(
-                self._embedder.describe(load_image(candidate.image_path)).content
-            )
+            # One describe() per frame. The previous shape called it twice — once
+            # for identity inside _score and once for content here — which doubled
+            # the most expensive step in the loop, and with a learned backend meant
+            # two forward passes per frame.
+            item, content = self._score(candidate, cohort, own)
+            scored.append(item)
+            content_vectors.append(content)
 
         scored = self._apply_selection(scored, content_vectors)
         aggregates = self._aggregate(scored, content_vectors)
@@ -210,6 +213,11 @@ class Evaluator:
                 character_id=suite.character.id,
                 recipe_revision=suite.recipe.revision,
                 policy_hash=self._policy.fingerprint(),
+                policy=self._policy,
+                identity_space=cohort.space.fingerprint(),
+                embedder_misses=(
+                    self._embedder.misses if isinstance(self._embedder, ReportsMisses) else 0
+                ),
                 reference_hashes=own.hashes,
             ),
             suite=suite,
@@ -224,7 +232,12 @@ class Evaluator:
 
     def _score(
         self, candidate: Candidate, cohort: Cohort, own: ReferenceProfile
-    ) -> ScoredCandidate:
+    ) -> tuple[ScoredCandidate, Vector]:
+        """Score one candidate, returning it with its content vector.
+
+        Both vectors come from a single ``describe()`` call: identity is scored here
+        and content is handed back for diversity and the shortlist.
+        """
         image = load_image(candidate.image_path)
         descriptor = self._embedder.describe(image)
         projected = cohort.space.project(descriptor.identity)
@@ -241,8 +254,11 @@ class Evaluator:
             frame=stats,
         )
         decision, rejections = evaluate_candidate(metrics, self._policy)
-        return ScoredCandidate(
-            candidate=candidate, metrics=metrics, decision=decision, rejections=rejections
+        return (
+            ScoredCandidate(
+                candidate=candidate, metrics=metrics, decision=decision, rejections=rejections
+            ),
+            descriptor.content,
         )
 
     def _apply_selection(

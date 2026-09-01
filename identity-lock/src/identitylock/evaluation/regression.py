@@ -62,6 +62,13 @@ def _check_comparable(baseline: RunResult, challenger: RunResult) -> None:
             "The two runs were scored against different reference images. "
             "Identity numbers from different yardsticks are not comparable."
         )
+    if baseline.manifest.identity_space != challenger.manifest.identity_space:
+        raise ComparisonError(
+            "The two runs were measured in different identity spaces "
+            f"({baseline.manifest.identity_space} vs {challenger.manifest.identity_space}). "
+            "The cohort or its references changed between them, so every cosine was "
+            "taken against a different centring and the differences are not paired."
+        )
     if baseline.manifest.recipe_revision == challenger.manifest.recipe_revision:
         raise ComparisonError(
             "Both runs used the same recipe revision "

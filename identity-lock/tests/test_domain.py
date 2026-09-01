@@ -222,3 +222,58 @@ class TestPolicyFingerprint:
 
     def test_changes_with_any_threshold(self) -> None:
         assert Policy().fingerprint() != Policy(identity_min=0.9).fingerprint()
+
+
+class TestThresholdModelsLiveInTheDomain:
+    """The threshold values are domain data; the rules that apply them are not.
+
+    `RunManifest` has to carry the policy a run was judged under, which it cannot
+    do if `Policy` lives in the module that imports `RunManifest`. Both import
+    paths resolve to the same class so nothing downstream had to change.
+    """
+
+    def test_policy_is_importable_from_both_places(self) -> None:
+        from identitylock.domain.models import ComparisonPolicy as ModelsComparisonPolicy
+        from identitylock.domain.models import Policy as ModelsPolicy
+
+        assert ModelsPolicy is Policy
+        assert ModelsComparisonPolicy is ComparisonPolicy
+
+
+class TestTooFewPairs:
+    """A bootstrap over one cell resamples the same number and returns no width."""
+
+    def _verdict(self, n_pairs: int, **kwargs: float) -> str:
+        payload: dict[str, float] = {
+            "win_rate": 1.0,
+            "mean_delta": 0.01,
+            "ci_low": 0.01,
+            "ci_high": 0.01,
+            "effect_size": 1.0,
+        }
+        payload.update(kwargs)
+        verdict = evaluate_comparison(n_pairs=n_pairs, policy=ComparisonPolicy(), **payload)
+        return verdict.outcome
+
+    def test_a_single_cell_cannot_be_an_improvement(self) -> None:
+        assert self._verdict(1) == "inconclusive"
+
+    def test_below_the_minimum_is_always_inconclusive(self) -> None:
+        for count in range(1, ComparisonPolicy().min_pairs):
+            assert self._verdict(count) == "inconclusive", count
+
+    def test_at_the_minimum_the_evidence_is_read_normally(self) -> None:
+        assert self._verdict(ComparisonPolicy().min_pairs) == "improvement"
+
+    def test_the_gate_is_named_in_the_verdict(self) -> None:
+        verdict = evaluate_comparison(
+            win_rate=1.0,
+            mean_delta=0.01,
+            ci_low=0.01,
+            ci_high=0.01,
+            effect_size=1.0,
+            n_pairs=1,
+            policy=ComparisonPolicy(),
+        )
+        assert any(gate.name == "enough_pairs" and not gate.passed for gate in verdict.gates)
+        assert "paired cell" in verdict.rationale

@@ -34,7 +34,16 @@ def reference_recipe(suite_file: SuiteFile) -> Recipe:
         if key not in {"identity_jitter", "drift_per_frame", "blur", "exposure_bias"}
     }
     clean["neutral_scene"] = True
-    return recipe.model_copy(update={"extra": clean, "id": f"{recipe_id}:reference"})
+    # `model_copy` bypasses validators, so a copy would silently inherit the base
+    # recipe's revision while carrying different fields — exactly the claim the
+    # sealed revision exists to make impossible. Re-validating re-derives it.
+    return Recipe.model_validate(
+        {
+            **recipe.model_dump(mode="json"),
+            "extra": clean,
+            "id": f"{recipe_id}:reference",
+        }
+    )
 
 
 def render_references(

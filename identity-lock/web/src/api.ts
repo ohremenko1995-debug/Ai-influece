@@ -70,8 +70,20 @@ export interface Candidate {
   image: string | null
 }
 
+export interface PolicyThresholds {
+  identity_min: number
+  identity_p05_min: number
+  margin_min: number
+  technical_min: number
+  consistency_rate_min: number
+  drift_abs_max: number
+  drift_alpha: number
+  diversity_min: number
+}
+
 export interface RunDetail extends RunSummary {
   gates: Gate[]
+  policy: PolicyThresholds
   candidates: Candidate[]
   manifest: Record<string, unknown>
   suite: {
